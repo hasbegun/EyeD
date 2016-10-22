@@ -81,11 +81,11 @@ void ImageProcessingSettingsDialog::updateStoredSettingsFromDialog()
     // Flip
     if(ui->flipCodeGroup->checkedButton() == (QAbstractButton*)ui->flipXAxisButton)
     {
-        m_imageProcessingSettings.flipCode = 0;
+        m_imageProcessingSettings.flipCode = 1;
     }
     else if(ui->flipCodeGroup->checkedButton() == (QAbstractButton*)ui->flipYAxisButton)
     {
-        m_imageProcessingSettings.flipCode = 1;
+        m_imageProcessingSettings.flipCode = 0;
     }
     else if(ui->flipCodeGroup->checkedButton() == (QAbstractButton*)ui->flipBothAxesButton)
     {
@@ -124,11 +124,11 @@ void ImageProcessingSettingsDialog::updateDialogSettingsFromStored()
     // Erode
     ui->erodeIterationsEdit->setText(QString::number(m_imageProcessingSettings.erodeNumberOfIterations));
     // Flip
-    if (m_imageProcessingSettings.flipCode == 0)
+    if (m_imageProcessingSettings.flipCode == 1)
     {
         ui->flipXAxisButton->setChecked(true);
     }
-    else if (m_imageProcessingSettings.flipCode == 1)
+    else if (m_imageProcessingSettings.flipCode == 0)
     {
         ui->flipYAxisButton->setChecked(true);
     }

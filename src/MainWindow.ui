@@ -23,7 +23,7 @@
    </size>
   </property>
   <property name="windowTitle">
-   <string>qt-opencv-multithreaded</string>
+   <string>EyeD</string>
   </property>
   <widget class="QWidget" name="centralWidget">
    <layout class="QVBoxLayout" name="verticalLayout">
@@ -51,7 +51,7 @@
      <x>0</x>
      <y>0</y>
      <width>600</width>
-     <height>20</height>
+     <height>22</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuFile">

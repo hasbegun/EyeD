@@ -86,6 +86,12 @@
             <bold>false</bold>
            </font>
           </property>
+          <property name="toolTip">
+           <string extracomment="Camera number, string from 0."/>
+          </property>
+          <property name="text">
+           <string/>
+          </property>
          </widget>
         </item>
         <item>
@@ -323,6 +329,9 @@
         </property>
         <property name="text">
          <string>Drop frame if image buffer is full</string>
+        </property>
+        <property name="checked">
+         <bool>true</bool>
         </property>
        </widget>
       </item>

@@ -32,32 +32,30 @@ macx {
 }
 
 SOURCES += src/CameraConnectDialog.cpp\
-           src/MainWindow.cpp\
            src/CameraView.cpp\
-           src/MatToQImage.cpp\
            src/CaptureThread.cpp\
-           src/ProcessingThread.cpp\
            src/FrameLabel.cpp\
-           src/SharedImageBuffer.cpp\
            src/ImageProcessingSettingsDialog.cpp\
-           src/main.cpp
+           src/main.cpp\
+           src/MainWindow.cpp\
+           src/MatToQImage.cpp\
+           src/ProcessingThread.cpp\
+           src/SharedImageBuffer.cpp
 
 HEADERS  += src/Buffer.h\
-            src/FrameLabel.h\
-            src/ProcessingThread.h\
             src/CameraConnectDialog.h\
-            src/ImageProcessingSettingsDialog.h\
-            src/SharedImageBuffer.h\
             src/CameraView.h\
-            src/CameraView.h\
-            src/MainWindow.h\
-            src/Structures.h\
             src/CaptureThread.h\
+            src/Config.h \
+            src/FrameLabel.h\
+            src/ImageProcessingSettingsDialog.h\
+            src/MainWindow.h\
             src/MatToQImage.h\
-            src/Config.h
-
+            src/ProcessingThread.h\
+            src/SharedImageBuffer.h\
+            src/Structures.h
 
 FORMS    += src/CameraConnectDialog.ui\
-            src/ImageProcessingSettingsDialog.ui\
             src/CameraView.ui\
+            src/ImageProcessingSettingsDialog.ui\
             src/MainWindow.ui

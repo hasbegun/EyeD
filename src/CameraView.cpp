@@ -28,7 +28,7 @@ CameraView::CameraView(int deviceNumber, SharedImageBuffer *sharedImageBuffer, Q
     ui->imageBufferLabel->setText("[000/000]");
     ui->captureRateLabel->setText("");
     ui->processingRateLabel->setText("");
-    ui->deviceNumberLabel->setText("");
+    ui->deviceNumberLabel->setText("0");
     ui->cameraResolutionLabel->setText("");
     ui->roiLabel->setText("");
     ui->mouseCursorPosLabel->setText("");
@@ -85,7 +85,8 @@ CameraView::~CameraView()
     delete ui;
 }
 
-bool CameraView::connectToCamera(bool dropFrameIfBufferFull, int capThreadPrio, int procThreadPrio, bool enableFrameProcessing, int width, int height)
+bool CameraView::connectToCamera(bool dropFrameIfBufferFull, int capThreadPrio, int procThreadPrio,
+                                 bool enableFrameProcessing, int width, int height)
 {
     // Set frame label text
     if (m_sharedImageBuffer->isSyncEnabledForDeviceNumber(m_deviceNumber))
@@ -206,7 +207,8 @@ void CameraView::updateProcessingThreadStats(ThreadStatisticsData statData)
 void CameraView::updateFrame(const QImage &frame)
 {
     // Display frame
-    ui->frameLabel->setPixmap(QPixmap::fromImage(frame).scaled(ui->frameLabel->width(), ui->frameLabel->height(),Qt::KeepAspectRatio));
+    // ui->frameLabel->setPixmap(QPixmap::fromImage(frame).scaled(ui->frameLabel->width(), ui->frameLabel->height(), Qt::KeepAspectRatio));
+    ui->frameLabel->setPixmap(QPixmap::fromImage(frame));
 }
 
 void CameraView::clearImageBuffer()

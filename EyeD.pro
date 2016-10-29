@@ -40,6 +40,7 @@ SOURCES += src/CameraConnectDialog.cpp\
            src/MainWindow.cpp\
            src/MatToQImage.cpp\
            src/ProcessingThread.cpp\
+           src/RecognitionSettingDlg.cpp\
            src/SharedImageBuffer.cpp
 
 HEADERS  += src/Buffer.h\
@@ -52,10 +53,12 @@ HEADERS  += src/Buffer.h\
             src/MainWindow.h\
             src/MatToQImage.h\
             src/ProcessingThread.h\
+            src/RecognitionSettingDlg.h\
             src/SharedImageBuffer.h\
             src/Structures.h
 
 FORMS    += src/CameraConnectDialog.ui\
             src/CameraView.ui\
             src/ImageProcessingSettingsDialog.ui\
-            src/MainWindow.ui
+            src/MainWindow.ui\
+            src/RecognitionSettingDlg.ui

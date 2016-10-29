@@ -11,10 +11,11 @@ namespace Ui {
     class CameraView;
 }
 
-class ProcessingThread;
 class CaptureThread;
-class SharedImageBuffer;
 class ImageProcessingSettingsDialog;
+class ProcessingThread;
+class RecognitionSettingDlg;
+class SharedImageBuffer;
 
 class CameraView : public QWidget
 {

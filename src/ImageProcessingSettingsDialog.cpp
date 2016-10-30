@@ -20,32 +20,55 @@ ImageProcessingSettingsDialog::ImageProcessingSettingsDialog(QWidget *parent) :
     connect(ui->resetErodeToDefaultsButton, &QPushButton::released, this, &ImageProcessingSettingsDialog::resetErodeDialogToDefaults);
     connect(ui->resetFlipToDefaultsButton, &QPushButton::released, this, &ImageProcessingSettingsDialog::resetFlipDialogToDefaults);
     connect(ui->resetCannyToDefaultsButton, &QPushButton::released, this, &ImageProcessingSettingsDialog::resetCannyDialogToDefaults);
+    connect(ui->resetDetectToDefaultsButton, &QPushButton::released, this, &ImageProcessingSettingsDialog::resetDetectDialogToDefaults);
     connect(ui->applyButton, &QPushButton::released, this, &ImageProcessingSettingsDialog::updateStoredSettingsFromDialog);
     connect(ui->smoothTypeGroup, static_cast<void (QButtonGroup::*)(QAbstractButton*)>(&QButtonGroup::buttonReleased), this, &ImageProcessingSettingsDialog::smoothTypeChange);
+
     // dilateIterationsEdit input string validation
     QRegExp rx5("[1-9]\\d{0,2}"); // Integers 1 to 999
     QRegExpValidator *validator5 = new QRegExpValidator(rx5, 0);
     ui->dilateIterationsEdit->setValidator(validator5);
+
     // erodeIterationsEdit input string validation
     QRegExp rx6("[1-9]\\d{0,2}"); // Integers 1 to 999
     QRegExpValidator *validator6 = new QRegExpValidator(rx6, 0);
     ui->erodeIterationsEdit->setValidator(validator6);
+
     // cannyThresh1Edit input string validation
     QRegExp rx7("^[0-9]{1,3}$"); // Integers 0 to 999
     QRegExpValidator *validator7 = new QRegExpValidator(rx7, 0);
     ui->cannyThresh1Edit->setValidator(validator7);
+
     // cannyThresh2Edit input string validation
     QRegExp rx8("^[0-9]{1,3}$"); // Integers 0 to 999
     QRegExpValidator *validator8 = new QRegExpValidator(rx8, 0);
     ui->cannyThresh2Edit->setValidator(validator8);
+
     // cannyApertureSizeEdit input string validation
     QRegExp rx9("[3,5,7]"); // Integers 3,5,7
     QRegExpValidator *validator9 = new QRegExpValidator(rx9, 0);
     ui->cannyApertureSizeEdit->setValidator(validator9);
+
     // Set dialog values to defaults
     resetAllDialogToDefaults();
+
     // Update image processing settings in imageProcessingSettings structure and processingThread
     updateStoredSettingsFromDialog();
+
+    // Detects
+    QStringList faceCascades;
+    faceCascades << "Lipcascade Frontalface" << "Haarcascade Frontal Face Default"
+                 << "Haarcascade Frontal Face Alt"  << "Haarcascade Frontal Face Alt Tree"
+                 << "Haarcascade Frontal Face Alt 2";
+    ui->faceCascadeCombo->addItems(faceCascades);
+
+    QStringList eye1Cascades;
+    eye1Cascades << "Haarcascade Eye" << "Haarcascade MCS Eye Small" << "Haarcascade MCS Eye Big";
+    ui->eyeCascade1Combo->addItems(eye1Cascades);
+
+    QStringList eye2Cascades;
+    eye2Cascades << "Haarcascade Eyeglasses";
+    ui->eyeCascade2Combo->addItems(eye2Cascades);
 }
 
 ImageProcessingSettingsDialog::~ImageProcessingSettingsDialog()
@@ -74,10 +97,13 @@ void ImageProcessingSettingsDialog::updateStoredSettingsFromDialog()
     m_imageProcessingSettings.smoothParam2 = ui->smoothParam2Edit->text().toInt();
     m_imageProcessingSettings.smoothParam3 = ui->smoothParam3Edit->text().toDouble();
     m_imageProcessingSettings.smoothParam4 = ui->smoothParam4Edit->text().toDouble();
+
     // Dilate
     m_imageProcessingSettings.dilateNumberOfIterations = ui->dilateIterationsEdit->text().toInt();
+
     // Erode
     m_imageProcessingSettings.erodeNumberOfIterations = ui->erodeIterationsEdit->text().toInt();
+
     // Flip
     if(ui->flipCodeGroup->checkedButton() == (QAbstractButton*)ui->flipXAxisButton)
     {
@@ -91,11 +117,18 @@ void ImageProcessingSettingsDialog::updateStoredSettingsFromDialog()
     {
         m_imageProcessingSettings.flipCode = -1;
     }
+
     // Canny
     m_imageProcessingSettings.cannyThreshold1 = ui->cannyThresh1Edit->text().toDouble();
     m_imageProcessingSettings.cannyThreshold2 = ui->cannyThresh2Edit->text().toDouble();
     m_imageProcessingSettings.cannyApertureSize = ui->cannyApertureSizeEdit->text().toInt();
     m_imageProcessingSettings.cannyL2gradient = ui->cannyL2NormCheckBox->isChecked();
+
+    // Detect
+    m_imageProcessingSettings.faceCascade = ui->faceCascadeCombo->currentText();
+    m_imageProcessingSettings.eyeCascade1 = ui->eyeCascade1Combo->currentText();
+    m_imageProcessingSettings.eyeCascade2 = ui->eyeCascade2Combo->currentText();
+
     // Update image processing flags in processingThread
     emit newImageProcessingSettings(m_imageProcessingSettings);
 }
@@ -157,6 +190,8 @@ void ImageProcessingSettingsDialog::resetAllDialogToDefaults()
     resetFlipDialogToDefaults();
     // Canny
     resetCannyDialogToDefaults();
+    // Detects
+    resetDetectDialogToDefaults();
 }
 
 void ImageProcessingSettingsDialog::smoothTypeChange(QAbstractButton *input)
@@ -390,4 +425,9 @@ void ImageProcessingSettingsDialog::resetCannyDialogToDefaults()
     ui->cannyThresh2Edit->setText(QString::number(DEFAULT_CANNY_THRESHOLD_2));
     ui->cannyApertureSizeEdit->setText(QString::number(DEFAULT_CANNY_APERTURE_SIZE));
     ui->cannyL2NormCheckBox->setChecked(DEFAULT_CANNY_L2GRADIENT);
+}
+
+void ImageProcessingSettingsDialog::resetDetectDialogToDefaults()
+{
+
 }

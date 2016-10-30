@@ -18,6 +18,9 @@ typedef struct
     double  cannyThreshold2;
     int     cannyApertureSize;
     bool    cannyL2gradient;
+    QString faceCascade;
+    QString eyeCascade1;
+    QString eyeCascade2;
 } ImageProcessingSettings;
 
 typedef struct
@@ -28,6 +31,8 @@ typedef struct
     bool erodeOn;
     bool flipOn;
     bool cannyOn;
+    bool faceDetectOn;
+    bool eyeDetectOn;
 } ImageProcessingFlags;
 
 typedef struct

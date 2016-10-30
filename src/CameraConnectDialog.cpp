@@ -13,35 +13,46 @@ CameraConnectDialog::CameraConnectDialog(QWidget *parent, bool isStreamSyncEnabl
 {
     // Setup dialog
     ui->setupUi(this);
+
     // deviceNumberEdit (device number) input validation
     QRegExp rx1("^[0-9]{1,3}$"); // Integers 0 to 999
     QRegExpValidator *validator1 = new QRegExpValidator(rx1, 0);
     ui->deviceNumberEdit->setValidator(validator1);
+
     // imageBufferSizeEdit (image buffer size) input validation
     QRegExp rx2("^[0-9]{1,3}$"); // Integers 0 to 999
     QRegExpValidator *validator2 = new QRegExpValidator(rx2, 0);
     ui->imageBufferSizeEdit->setValidator(validator2);
+
     // resWEdit (resolution: width) input validation
     QRegExp rx3("^[0-9]{1,4}$"); // Integers 0 to 9999
     QRegExpValidator *validator3 = new QRegExpValidator(rx3, 0);
     ui->resWEdit->setValidator(validator3);
+
     // resHEdit (resolution: height) input validation
     QRegExp rx4("^[0-9]{1,4}$"); // Integers 0 to 9999
     QRegExpValidator *validator4 = new QRegExpValidator(rx4, 0);
     ui->resHEdit->setValidator(validator4);
+
     // Setup combo boxes
     QStringList threadPriorities;
     threadPriorities << tr("Idle") << tr("Lowest") << tr("Low") << tr("Normal")
                      << tr("High") << tr("Highest") << tr("Time Critical") << tr("Inherit");
     ui->capturePrioComboBox->addItems(threadPriorities);
     ui->processingPrioComboBox->addItems(threadPriorities);
+
     // Set dialog to defaults
     resetToDefaults();
+
     // Enable/disable checkbox
     ui->enableFrameProcessingCheckBox->setEnabled(isStreamSyncEnabled);
+
     // Connect button to slot
     connect(ui->resetToDefaultsPushButton, &QPushButton::released, this,
             &CameraConnectDialog::resetToDefaults);
+
+    // Set default device number 0
+    ui->deviceNumberEdit->setText("0");
 }
 
 CameraConnectDialog::~CameraConnectDialog()

@@ -130,31 +130,50 @@ void FrameLabel::createContextMenu()
     menu->addMenu(menu_imgProc);
     // Add actions
     action = new QAction(this);
+
     action->setText(tr("Grayscale"));
     action->setCheckable(true);
     menu_imgProc->addAction(action);
     action = new QAction(this);
+
     action->setText(tr("Smooth"));
     action->setCheckable(true);
     menu_imgProc->addAction(action);
     action = new QAction(this);
+
     action->setText(tr("Dilate"));
     action->setCheckable(true);
     menu_imgProc->addAction(action);
     action = new QAction(this);
+
     action->setText(tr("Erode"));
     action->setCheckable(true);
     menu_imgProc->addAction(action);
     action = new QAction(this);
+
     action->setText(tr("Flip"));
     action->setCheckable(true);
     menu_imgProc->addAction(action);
     action = new QAction(this);
+
     action->setText(tr("Canny"));
     action->setCheckable(true);
     menu_imgProc->addAction(action);
     menu_imgProc->addSeparator();
     action = new QAction(this);
+
+    action->setText(tr("Face Detect"));
+    action->setCheckable(true);
+    menu_imgProc->addAction(action);
+    action = new QAction(this);
+
+    action->setText(tr("Eye Detect"));
+    action->setCheckable(true);
+    menu_imgProc->addAction(action);
+
+    menu_imgProc->addSeparator();
+    action = new QAction(this);
+
     action->setText(tr("Settings..."));
     menu_imgProc->addAction(action);
 }

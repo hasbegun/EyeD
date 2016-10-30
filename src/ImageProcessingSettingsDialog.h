@@ -35,6 +35,7 @@ class ImageProcessingSettingsDialog : public QDialog
         void resetErodeDialogToDefaults();
         void resetFlipDialogToDefaults();
         void resetCannyDialogToDefaults();
+        void resetDetectDialogToDefaults();
         void validateDialog();
         void smoothTypeChange(QAbstractButton *button);
 

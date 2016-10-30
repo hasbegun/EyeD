@@ -42,4 +42,9 @@ namespace {
 #define DEFAULT_CANNY_APERTURE_SIZE         3
 #define DEFAULT_CANNY_L2GRADIENT            false
 
+// Recognitions
+#define DEFAULT_FACE_CASCADE                0
+#define DEFAULT_EYE_CASCADE1                0
+#define DEFAULT_EYE_CASCADE2                0
+
 #endif // CONFIG_H

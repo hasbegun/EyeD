@@ -8,8 +8,10 @@
 #include <QImage>
 
 #include <opencv2/opencv.hpp>
-
+#include <opencv2/objdetect.hpp>
 #include "Structures.h"
+
+using namespace cv;
 
 class SharedImageBuffer;
 
@@ -45,6 +47,11 @@ class ProcessingThread : public QThread
         int m_sampleNumber;
         int m_deviceNumber;
         bool m_enableFrameProcessing;
+
+        CascadeClassifier faceCascade;
+        CascadeClassifier eyeCascade1;
+        CascadeClassifier eyeCascade2;
+        void initDetectCascades();
 
     protected:
         void run();

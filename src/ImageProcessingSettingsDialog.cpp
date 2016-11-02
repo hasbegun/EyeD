@@ -6,6 +6,7 @@
 
 #include <QMessageBox>
 #include <QAbstractButton>
+#include <QDebug>
 
 ImageProcessingSettingsDialog::ImageProcessingSettingsDialog(QWidget *parent) :
     QDialog(parent),
@@ -80,6 +81,7 @@ void ImageProcessingSettingsDialog::updateStoredSettingsFromDialog()
 {
     // Validate values in dialog before storing
     validateDialog();
+
     // Smooth
     if(ui->smoothTypeGroup->checkedButton() == (QAbstractButton*)ui->smoothBlurButton)
     {
@@ -128,6 +130,8 @@ void ImageProcessingSettingsDialog::updateStoredSettingsFromDialog()
     m_imageProcessingSettings.faceCascade = ui->faceCascadeCombo->currentText();
     m_imageProcessingSettings.eyeCascade1 = ui->eyeCascade1Combo->currentText();
     m_imageProcessingSettings.eyeCascade2 = ui->eyeCascade2Combo->currentText();
+
+    qDebug() <<  m_imageProcessingSettings.faceCascade;
 
     // Update image processing flags in processingThread
     emit newImageProcessingSettings(m_imageProcessingSettings);
@@ -429,5 +433,7 @@ void ImageProcessingSettingsDialog::resetCannyDialogToDefaults()
 
 void ImageProcessingSettingsDialog::resetDetectDialogToDefaults()
 {
-
+    ui->faceCascadeCombo->setCurrentIndex(DEFAULT_FACE_CASCADE);
+    ui->eyeCascade1Combo->setCurrentIndex(DEFAULT_EYE_CASCADE1);
+    ui->eyeCascade2Combo->setCurrentIndex(DEFAULT_EYE_CASCADE2);
 }

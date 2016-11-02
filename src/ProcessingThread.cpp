@@ -7,6 +7,9 @@
 #include "Config.h"
 
 #include <QDebug>
+#include <QDir>
+
+using namespace cv;
 
 ProcessingThread::ProcessingThread(SharedImageBuffer *sharedImageBuffer, int deviceNumber) :
     QThread(),
@@ -19,10 +22,82 @@ ProcessingThread::ProcessingThread(SharedImageBuffer *sharedImageBuffer, int dev
     m_fps.clear();
     m_statsData.averageFPS = 0;
     m_statsData.nFramesProcessed = 0;
+    initDetectCascades();
+}
+void ProcessingThread::initDetectCascades()
+{
+    QString cascade;
+    QString cwd = QDir::currentPath();
+    QString cascadePath = QDir(cwd).filePath("build");
+    qDebug() << cascadePath;
+
+    // face cascade
+    if (m_imgProcSettings.faceCascade == "Lipcascade Frontalface")
+        cascade = "lipcascade_frontalface.xml";
+    else if (m_imgProcSettings.faceCascade == "Haarcascade Frontal Face Default")
+        cascade = "haarcascade_frontalface_default.xml";
+    else if (m_imgProcSettings.faceCascade == "Haarcascade Frontal Face Alt")
+        cascade = "haarcascade_frontalface_alt.xml";
+    else if (m_imgProcSettings.faceCascade == "Haarcascade Frontal Face Alt Tree")
+        cascade = "haarcascade_frontalface_alt_tree.xml";
+    else if (m_imgProcSettings.faceCascade == "Haarcascade Frontal Face Alt2")
+        cascade = "haarcascade_frontalface_alt2.xml";
+    else
+        cascade = "lipcascade_frontalface.xml";
+    cascade = QDir(cwd).filePath("build/"+cascade);
+    qDebug() << cascade;
+
+
+    if (faceCascade.empty()) {
+        try {
+            faceCascade.load(cascade.toUtf8().constData());
+            qDebug("face cascade locaded!");
+        } catch (cv::Exception &e) {
+            qDebug("Unable to load face cascade.");
+        }
+    }
+
+    // eye cascade 1
+    if (m_imgProcSettings.eyeCascade1 == "Haarcascade Eye")
+        cascade = "haarcascade_eye.xml";
+    else if (m_imgProcSettings.faceCascade == "Haarcascade MCS Eye Small")
+        cascade = "haarcascade_mcs_eyepair_small.xml";
+    else if (m_imgProcSettings.faceCascade == "Haarcascade MCS Eye Big")
+        cascade = "haarcascade_mcs_eyepair_big.xml";
+    else
+        cascade = "haarcascade_eye.xml";
+    cascade = QDir(cwd).filePath("build/"+cascade);
+    qDebug() << cascade;
+    if (eyeCascade1.empty()) {
+        try {
+            eyeCascade1.load(cascade.toUtf8().constData());
+            qDebug("eye cascade 1 locaded!");
+        } catch (cv::Exception &e) {
+            qDebug("Unable to load eye cascade 1.");
+        }
+    }
+
+    // eye cascade 2
+    if (m_imgProcSettings.eyeCascade1 == "Haarcascade Eyeglasses")
+        cascade = "haarcascade_eye_tree_flasses.xml";
+    else
+        cascade = "haarcascade_eye_tree_flasses.xml";
+    cascade = QDir(cwd).filePath("build/"+cascade);
+    qDebug() << cascade;
+    if (eyeCascade2.empty()) {
+        try {
+            eyeCascade2.load(cascade.toUtf8().constData());
+            qDebug("eye cascade 2 locaded!");
+        } catch (cv::Exception &e) {
+            qDebug("Unable to load eye cascade 2.");
+        }
+    }
 }
 
 void ProcessingThread::run()
 {
+    Mat m_grayFrame;
+
     while(1)
     {
         ////////////////////////////////
@@ -66,9 +141,7 @@ void ProcessingThread::run()
         // Grayscale conversion
         if (m_imgProcFlags.grayscaleOn && (m_currentFrame.channels() == 3 || m_currentFrame.channels() == 4))
         {
-            cvtColor(m_currentFrame,
-                m_currentFrame,
-                CV_BGR2GRAY);
+            cvtColor(m_currentFrame, m_currentFrame, CV_BGR2GRAY);
         }
 
         // Smooth
@@ -98,6 +171,7 @@ void ProcessingThread::run()
                     break;
             }
         }
+
         // Dilate
         if (m_imgProcFlags.dilateOn)
         {
@@ -107,6 +181,7 @@ void ProcessingThread::run()
                 cv::Point(-1, -1),
                 m_imgProcSettings.dilateNumberOfIterations);
         }
+
         // Erode
         if (m_imgProcFlags.erodeOn)
         {
@@ -116,6 +191,7 @@ void ProcessingThread::run()
                 cv::Point(-1, -1),
                 m_imgProcSettings.erodeNumberOfIterations);
         }
+
         // Flip
         if (m_imgProcFlags.flipOn)
         {
@@ -123,6 +199,7 @@ void ProcessingThread::run()
                 m_currentFrame,
                 m_imgProcSettings.flipCode);
         }
+
         // Canny edge detection
         if (m_imgProcFlags.cannyOn)
         {
@@ -132,6 +209,23 @@ void ProcessingThread::run()
                 m_imgProcSettings.cannyThreshold2,
                 m_imgProcSettings.cannyApertureSize,
                 m_imgProcSettings.cannyL2gradient);
+        }
+
+        // Face detection
+        if (m_imgProcFlags.faceDetectOn)
+        {
+            if (m_currentFrame.empty()) {
+                qDebug() << "Frame dropped...";
+                continue;
+            }
+            cvtColor(m_currentFrame, m_grayFrame, CV_BGR2GRAY);
+            vector<Rect_<int>> faces;
+            faceCascade.detectMultiScale(m_grayFrame, faces);
+            for(int i=0; i<faces.size(); i++){
+                qDebug() << "faces...";
+                Rect face_i = faces[i];
+                rectangle(m_currentFrame, face_i, CV_RGB(0,255,0), 1);
+            }
         }
         ////////////////////////////////////
         // PERFORM IMAGE PROCESSING ABOVE //
@@ -198,27 +292,31 @@ void ProcessingThread::updateImageProcessingFlags(ImageProcessingFlags imgProcFl
     QMutexLocker locker(&m_processingMutex);
     m_imgProcFlags.grayscaleOn = imgProcFlags.grayscaleOn;
     m_imgProcFlags.smoothOn = imgProcFlags.smoothOn;
-    m_imgProcFlags.dilateOn=imgProcFlags.dilateOn;
-    m_imgProcFlags.erodeOn=imgProcFlags.erodeOn;
-    m_imgProcFlags.flipOn=imgProcFlags.flipOn;
-    m_imgProcFlags.cannyOn=imgProcFlags.cannyOn;
+    m_imgProcFlags.dilateOn = imgProcFlags.dilateOn;
+    m_imgProcFlags.erodeOn = imgProcFlags.erodeOn;
+    m_imgProcFlags.flipOn = imgProcFlags.flipOn;
+    m_imgProcFlags.cannyOn = imgProcFlags.cannyOn;
 }
 
 void ProcessingThread::updateImageProcessingSettings(ImageProcessingSettings imgProcSettings)
 {
     QMutexLocker locker(&m_processingMutex);
-    m_imgProcSettings.smoothType=imgProcSettings.smoothType;
-    m_imgProcSettings.smoothParam1=imgProcSettings.smoothParam1;
-    m_imgProcSettings.smoothParam2=imgProcSettings.smoothParam2;
-    m_imgProcSettings.smoothParam3=imgProcSettings.smoothParam3;
-    m_imgProcSettings.smoothParam4=imgProcSettings.smoothParam4;
-    m_imgProcSettings.dilateNumberOfIterations=imgProcSettings.dilateNumberOfIterations;
-    m_imgProcSettings.erodeNumberOfIterations=imgProcSettings.erodeNumberOfIterations;
-    m_imgProcSettings.flipCode=imgProcSettings.flipCode;
-    m_imgProcSettings.cannyThreshold1=imgProcSettings.cannyThreshold1;
-    m_imgProcSettings.cannyThreshold2=imgProcSettings.cannyThreshold2;
-    m_imgProcSettings.cannyApertureSize=imgProcSettings.cannyApertureSize;
-    m_imgProcSettings.cannyL2gradient=imgProcSettings.cannyL2gradient;
+    m_imgProcSettings.smoothType = imgProcSettings.smoothType;
+    m_imgProcSettings.smoothParam1 = imgProcSettings.smoothParam1;
+    m_imgProcSettings.smoothParam2 = imgProcSettings.smoothParam2;
+    m_imgProcSettings.smoothParam3 = imgProcSettings.smoothParam3;
+    m_imgProcSettings.smoothParam4 = imgProcSettings.smoothParam4;
+    m_imgProcSettings.dilateNumberOfIterations = imgProcSettings.dilateNumberOfIterations;
+    m_imgProcSettings.erodeNumberOfIterations = imgProcSettings.erodeNumberOfIterations;
+    m_imgProcSettings.flipCode = imgProcSettings.flipCode;
+    m_imgProcSettings.cannyThreshold1 = imgProcSettings.cannyThreshold1;
+    m_imgProcSettings.cannyThreshold2 = imgProcSettings.cannyThreshold2;
+    m_imgProcSettings.cannyApertureSize = imgProcSettings.cannyApertureSize;
+    m_imgProcSettings.cannyL2gradient = imgProcSettings.cannyL2gradient;
+    m_imgProcSettings.faceCascade = imgProcSettings.faceCascade;
+    m_imgProcSettings.eyeCascade1 = imgProcSettings.eyeCascade1;
+    m_imgProcSettings.eyeCascade2 = imgProcSettings.eyeCascade2;
+    initDetectCascades();
 }
 
 void ProcessingThread::setROI(QRect roi)

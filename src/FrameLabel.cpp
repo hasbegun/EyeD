@@ -114,6 +114,7 @@ void FrameLabel::createContextMenu()
 {
     // Create top-level menu object
     menu = new QMenu(this);
+
     // Add actions
     QAction *action;
     action = new QAction(this);
@@ -124,6 +125,7 @@ void FrameLabel::createContextMenu()
     action->setCheckable(true);
     menu->addAction(action);
     menu->addSeparator();
+
     // Create image processing menu object
     QMenu* menu_imgProc = new QMenu(this);
     menu_imgProc->setTitle(tr("Image Processing"));

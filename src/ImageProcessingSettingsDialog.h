@@ -7,7 +7,7 @@
 #include "Structures.h"
 
 namespace Ui {
-class ImageProcessingSettingsDialog;
+    class ImageProcessingSettingsDialog;
 }
 
 class QAbstractButton;

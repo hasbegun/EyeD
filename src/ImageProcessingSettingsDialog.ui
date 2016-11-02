@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>521</width>
-    <height>380</height>
+    <height>424</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -19,7 +19,7 @@
      <item>
       <widget class="QTabWidget" name="tabWidget">
        <property name="currentIndex">
-        <number>5</number>
+        <number>0</number>
        </property>
        <widget class="QWidget" name="smoothTab_5">
         <attribute name="title">
@@ -277,7 +277,7 @@
                    <widget class="QLabel" name="smoothParam1Label">
                     <property name="font">
                      <font>
-                      <pointsize>8</pointsize>
+                      <pointsize>11</pointsize>
                      </font>
                     </property>
                     <property name="text">
@@ -370,7 +370,7 @@
                    <widget class="QLabel" name="smoothParam2Label">
                     <property name="font">
                      <font>
-                      <pointsize>8</pointsize>
+                      <pointsize>11</pointsize>
                      </font>
                     </property>
                     <property name="text">
@@ -463,7 +463,7 @@
                    <widget class="QLabel" name="smoothParam3Label">
                     <property name="font">
                      <font>
-                      <pointsize>8</pointsize>
+                      <pointsize>11</pointsize>
                      </font>
                     </property>
                     <property name="text">
@@ -556,7 +556,7 @@
                    <widget class="QLabel" name="smoothParam4Label">
                     <property name="font">
                      <font>
-                      <pointsize>8</pointsize>
+                      <pointsize>11</pointsize>
                      </font>
                     </property>
                     <property name="text">
@@ -1542,7 +1542,7 @@
   </connection>
  </connections>
  <buttongroups>
-  <buttongroup name="smoothTypeGroup"/>
   <buttongroup name="flipCodeGroup"/>
+  <buttongroup name="smoothTypeGroup"/>
  </buttongroups>
 </ui>

@@ -21,8 +21,8 @@ cmake -D CMAKE_PREFIX_PATH=${QT5} -D OpenCV_DIR=${OCV} -D TBB_DIR=${TBB} \
 #cmake -D CMAKE_PREFIX_PATH=${QT5}:${TBB} -D OpenCV_DIR=${OCV} ..
 
 mkdir cascades
-cp -r ${OCV}/share/OpenCV/haarcascades ./cascades
-cp -r ${OCV}/share/OpenCV/lbpcascades ./cascades
+cp -r ${OCV}/share/OpenCV/haarcascades/* ./cascades
+cp -r ${OCV}/share/OpenCV/lbpcascadesi/* ./cascades
 echo "Copied cascades."
 
 echo "make..."

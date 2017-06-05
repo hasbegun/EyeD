@@ -1,0 +1,1 @@
+../util/prune-dataset.py $@

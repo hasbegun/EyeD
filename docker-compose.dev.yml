@@ -1,0 +1,16 @@
+# Development overrides: hot reload + volume mounts
+# Usage: docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+
+services:
+  iris-engine:
+    volumes:
+      - ./iris-engine/src:/app/src:ro
+      - ./iris-engine/tests:/app/tests:ro
+      - ./iris-engine/pyproject.toml:/app/pyproject.toml:ro
+      - ./data:/data:ro
+    command: >
+      sh -c "pip install --quiet pytest 'httpx>=0.27,<0.28' &&
+             uvicorn src.main:app --host 0.0.0.0 --port 7000 --reload"
+    environment:
+      EYED_LOG_LEVEL: debug
+      EYED_DB_URL: postgresql://eyed:eyed_dev@postgres:5432/eyed

@@ -1,0 +1,9 @@
+# Docker Compose override for webcam mode (Linux — direct device passthrough)
+# Usage: docker compose -f docker-compose.yml -f docker-compose.webcam.yml up
+services:
+  capture-device:
+    devices:
+      - "/dev/video0:/dev/video0"
+    environment:
+      EYED_CAMERA_SOURCE: webcam
+      EYED_CAMERA_DEVICE: "/dev/video0"

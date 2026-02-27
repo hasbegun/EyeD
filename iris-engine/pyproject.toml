@@ -1,0 +1,31 @@
+[project]
+name = "eyed-iris-engine"
+version = "0.1.0"
+description = "EyeD iris recognition engine wrapping Open-IRIS"
+requires-python = ">=3.10,<3.11"
+dependencies = [
+    "open-iris>=1.11,<2",
+    "nats-py>=2.6",
+    "fastapi>=0.100,<0.110",
+    "uvicorn[standard]>=0.24",
+    "python-multipart>=0.0.6",
+    "asyncpg>=0.29",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "httpx>=0.27,<0.28",
+    "ruff>=0.3",
+]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "casia: tests requiring CASIA1 dataset (slow)",
+    "benchmark: pipeline latency benchmarks",
+]

@@ -1,0 +1,8 @@
+# Open-IRIS pins pydantic==1.10.13, opencv-python==4.7.0.68, onnxruntime==1.16.3
+# Do NOT override these — let open-iris control its own dependency versions
+open-iris>=1.11,<2
+nats-py>=2.6
+fastapi>=0.100,<0.110
+uvicorn[standard]>=0.24
+python-multipart>=0.0.6
+asyncpg>=0.29

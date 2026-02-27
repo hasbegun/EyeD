@@ -1,0 +1,23 @@
+[gateway]
+address = "gateway:50051"
+connect_timeout_ms = 5000
+reconnect_base_ms = 500
+reconnect_max_ms = 30000
+
+[camera]
+source = "directory"            # "directory" | "webcam"
+image_dir = "/data/Iris/CASIA1"
+# device = "/dev/video0"        # webcam: device path or stream URL
+# width = 640                   # webcam: capture width
+# height = 480                  # webcam: capture height
+frame_rate_fps = 30
+eye_side = "left"
+is_nir = true
+
+[quality]
+threshold = 0.05
+jpeg_quality = 85
+
+[device]
+id = "capture-01"
+log_level = "info"

@@ -1,0 +1,8 @@
+# Docker Compose override for webcam mode (macOS/Windows — MJPEG relay)
+# Prerequisites: run `make webcam-relay` on host first (serves MJPEG on port 8090)
+# Usage: docker compose -f docker-compose.yml -f docker-compose.webcam-macos.yml up
+services:
+  capture-device:
+    environment:
+      EYED_CAMERA_SOURCE: webcam
+      EYED_CAMERA_DEVICE: "http://host.docker.internal:8090/video"

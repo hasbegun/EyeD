@@ -1,0 +1,46 @@
+// EyeD capture device <-> gateway gRPC protocol
+// Stub for Phase 2 (Gateway) — defines the contract between
+// C++ capture device and C++ gateway service.
+
+syntax = "proto3";
+
+package eyed;
+
+option go_package = "github.com/hasbegun/eyed/gateway/proto";
+
+service CaptureService {
+    // Single frame analysis
+    rpc SubmitFrame(CaptureFrame) returns (FrameAck);
+
+    // Streaming: continuous frame submission
+    rpc StreamFrames(stream CaptureFrame) returns (stream FrameAck);
+
+    // Health check
+    rpc GetStatus(Empty) returns (ServerStatus);
+}
+
+message Empty {}
+
+message CaptureFrame {
+    bytes   jpeg_data       = 1;    // JPEG compressed eye region
+    float   quality_score   = 2;    // Sobel score (pre-computed on RPi)
+    uint64  timestamp_us    = 3;    // Capture timestamp (microseconds)
+    uint32  frame_id        = 4;    // Monotonic frame counter
+    string  device_id       = 5;    // Which capture device
+    bool    is_nir          = 6;    // NIR camera flag
+    string  eye_side        = 7;    // "left" or "right"
+}
+
+message FrameAck {
+    uint32  frame_id        = 1;    // Which frame this ack is for
+    bool    accepted        = 2;    // Server accepted (false = backpressure)
+    uint32  queue_depth     = 3;    // Server-side queue depth
+}
+
+message ServerStatus {
+    bool    alive           = 1;
+    bool    ready           = 2;
+    uint32  connected_devices = 3;
+    float   avg_latency_ms  = 4;
+    uint64  frames_processed = 5;
+}

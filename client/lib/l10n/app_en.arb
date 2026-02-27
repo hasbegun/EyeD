@@ -1,0 +1,211 @@
+{
+  "@@locale": "en",
+
+  "appTitle": "EyeD - Iris Recognition",
+  "@appTitle": { "description": "Application title" },
+
+  "brandName": "EyeD",
+
+  "dashboard": "Dashboard",
+  "devices": "Devices",
+  "enrollment": "Enrollment",
+  "analysis": "Analysis",
+  "history": "History",
+  "admin": "Admin",
+
+  "framesProcessed": "Frames Processed",
+  "matches": "Matches",
+  "errors": "Errors",
+  "liveResults": "Live Results",
+  "waitingForResults": "Waiting for results...",
+
+  "noDevicesDetected": "No devices detected yet.\nDevices appear automatically when they send frames.",
+  "frames": "Frames",
+  "hd": "HD",
+  "latency": "Latency",
+
+  "identityName": "Identity Name",
+  "eyeSideLeft": "Left",
+  "eyeSideRight": "Right",
+  "enroll": "Enroll",
+  "selectImageFromBrowser": "Select an image from the browser",
+  "gallery": "Gallery",
+  "noIdentitiesEnrolled": "No identities enrolled yet.",
+  "delete": "Delete",
+  "duplicateDetected": "Duplicate detected ({duplicateIdentityId})",
+  "@duplicateDetected": {
+    "placeholders": {
+      "duplicateIdentityId": { "type": "String" }
+    }
+  },
+  "enrolled": "Enrolled: {templateId}",
+  "@enrolled": {
+    "placeholders": {
+      "templateId": { "type": "String" }
+    }
+  },
+
+  "analyze": "Analyze",
+  "selectImageAndAnalyze": "Select an image and click Analyze",
+  "segmentation": "Segmentation",
+  "original": "Original",
+  "pipelineOutputs": "Pipeline Outputs",
+  "normalizedIris": "Normalized Iris",
+  "irisCode": "Iris Code",
+  "noiseMask": "Noise Mask",
+  "qualityMetrics": "Quality Metrics",
+  "sharpness": "Sharpness",
+  "offgaze": "Offgaze",
+  "occlusion90": "Occlusion 90",
+  "occlusion30": "Occlusion 30",
+  "pupilIrisRatio": "Pupil/Iris Ratio",
+  "geometry": "Geometry",
+  "pupilCenter": "Pupil Center",
+  "irisCenter": "Iris Center",
+  "pupilRadius": "Pupil Radius",
+  "irisRadius": "Iris Radius",
+  "eyeOrientation": "Eye Orientation",
+  "noGalleryTemplates": "No gallery templates \u2014 enroll identities first",
+  "noMatch": "No match",
+  "hdValue": "HD: {hd}",
+  "@hdValue": {
+    "placeholders": {
+      "hd": { "type": "String" }
+    }
+  },
+  "matchIdentity": "Match ({id})",
+  "@matchIdentity": {
+    "placeholders": {
+      "id": { "type": "String" }
+    }
+  },
+
+  "filterAll": "all",
+  "filterMatch": "match",
+  "filterNoMatch": "no-match",
+  "filterError": "error",
+  "searchPlaceholder": "Search device, frame, identity...",
+  "headerTime": "Time",
+  "headerDevice": "Device",
+  "headerFrame": "Frame",
+  "headerHd": "HD",
+  "headerStatus": "Status",
+  "headerLatency": "Latency",
+  "noResultsMatchFilter": "No results match the current filter.",
+
+  "pollingEvery5s": "Polling every 5s",
+  "serviceGateway": "Gateway",
+  "serviceIrisEngine": "Iris Engine",
+  "serviceNats": "NATS",
+  "alive": "Alive",
+  "ready": "Ready",
+  "nats": "NATS",
+  "circuitBreaker": "Circuit Breaker",
+  "version": "Version",
+  "pipeline": "Pipeline",
+  "gallerySize": "Gallery Size",
+  "database": "Database",
+  "status": "Status",
+  "clientPort": "Client Port",
+  "monitorPort": "Monitor Port",
+  "unreachable": "Unreachable",
+  "connected": "Connected",
+  "disconnected": "Disconnected",
+  "unknown": "Unknown",
+  "natsClientPortInfo": "4222 (internal) / 9502 (host)",
+  "natsMonitorPortInfo": "8222 (internal) / 9501 (host)",
+
+  "notFoundCode": "404",
+  "pageNotFound": "Page not found",
+
+  "statusLive": "Live",
+  "statusOffline": "Offline",
+
+  "videoLive": "LIVE",
+  "videoConnecting": "CONNECTING",
+  "videoWaiting": "WAITING",
+  "videoOffline": "OFFLINE",
+  "waitingForVideo": "Waiting for video...",
+
+  "noImages": "No images",
+  "eyeSideShortLeft": "L",
+  "eyeSideShortRight": "R",
+
+  "errorPrefix": "Error: {error}",
+  "@errorPrefix": {
+    "placeholders": {
+      "error": { "type": "String" }
+    }
+  },
+  "noMatchData": "No match data",
+
+  "languageName": "English",
+
+  "datasetPaths": "Dataset Directories",
+  "datasetPathsPrimary": "Primary",
+  "datasetPathsExtra": "Extra",
+  "addDirectory": "Add Directory",
+  "remove": "Remove",
+  "enterAbsolutePath": "Enter absolute path (e.g. /data/MyDataset)",
+  "add": "Add",
+  "cancel": "Cancel",
+  "pathAlreadyRegistered": "Path already registered",
+  "datasetsCount": "{count} datasets",
+  "@datasetsCount": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "directoryNotFound": "Directory not found",
+
+  "close": "Close",
+
+  "bulkEnroll": "Bulk Enroll",
+  "bulkEnrollStart": "Start",
+  "bulkEnrollSubjectFilter": "Filter subjects (comma-separated, e.g. 000,001,002) — leave empty for all",
+  "bulkEnrolled": "enrolled",
+  "bulkDuplicate": "duplicate",
+  "bulkEnrollComplete": "Complete: {enrolled} enrolled, {duplicates} duplicates, {errors} errors",
+  "@bulkEnrollComplete": {
+    "placeholders": {
+      "enrolled": { "type": "int" },
+      "duplicates": { "type": "int" },
+      "errors": { "type": "int" }
+    }
+  },
+
+  "identityDetails": "Identity Details",
+  "templateId": "Template ID",
+  "eyeSide": "Eye Side",
+  "identityId": "Identity ID",
+  "templates": "Templates",
+  "noTemplates": "No templates",
+
+  "codeSize": "Code Size",
+  "scales": "Scales",
+  "deviceId": "Device ID",
+  "loading": "Loading...",
+  "maskCode": "Mask Code",
+
+  "themeSystem": "System",
+  "themeLight": "Light",
+  "themeDark": "Dark",
+
+  "connectionLost": "Connection Lost",
+  "connectionLostDesc": "Unable to reach the backend services.",
+  "reconnect": "Reconnect",
+  "reconnecting": "Reconnecting...",
+  "reconnectCountdown": "Reconnect ({seconds}s)",
+  "@reconnectCountdown": {
+    "placeholders": {
+      "seconds": { "type": "int" }
+    }
+  },
+  "connectionRetryCount": "Attempt {current} of {max}",
+  "@connectionRetryCount": {
+    "placeholders": {
+      "current": { "type": "int" },
+      "max": { "type": "int" }
+    }
+  }
+}

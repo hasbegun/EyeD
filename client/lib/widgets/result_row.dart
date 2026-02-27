@@ -10,11 +10,17 @@ class ResultRow extends StatelessWidget {
 
   const ResultRow({super.key, required this.result, this.timeLabel});
 
+  String? get _matchName {
+    final name = result.match?.matchedIdentityName;
+    if (name == null || name.isEmpty) return null;
+    return name;
+  }
+
   String _statusText(AppLocalizations l10n) {
     if (result.error != null) return l10n.errorPrefix(result.error!);
     if (result.match == null) return l10n.noMatchData;
     if (result.match!.isMatch) {
-      return l10n.matchIdentity(result.match!.matchedIdentityId ?? "?");
+      return l10n.matchIdentity(result.match!.matchedIdentityId ?? '?');
     }
     return l10n.noMatch;
   }
@@ -65,13 +71,29 @@ class ResultRow extends StatelessWidget {
           ),
           SizedBox(width: 80, child: Text(_hdText, style: mono)),
           Expanded(
-            child: Text(
-              _statusText(l10n),
-              style: TextStyle(
-                fontSize: 13,
-                color: borderColor,
-              ),
-              overflow: TextOverflow.ellipsis,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (_matchName != null)
+                  Text(
+                    _matchName!,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: borderColor,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                Text(
+                  _statusText(l10n),
+                  style: TextStyle(
+                    fontSize: _matchName != null ? 11 : 13,
+                    color: borderColor,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
             ),
           ),
           SizedBox(

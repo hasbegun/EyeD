@@ -800,6 +800,24 @@ abstract class AppLocalizations {
   /// **'Complete: {enrolled} enrolled, {duplicates} duplicates, {errors} errors'**
   String bulkEnrollComplete(int enrolled, int duplicates, int errors);
 
+  /// No description provided for @bulkEnrollRunning.
+  ///
+  /// In en, this message translates to:
+  /// **'Enrolling...'**
+  String get bulkEnrollRunning;
+
+  /// No description provided for @bulkEnrollProgress.
+  ///
+  /// In en, this message translates to:
+  /// **'Enrolling {processed}'**
+  String bulkEnrollProgress(int processed);
+
+  /// No description provided for @refresh.
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh'**
+  String get refresh;
+
   /// No description provided for @identityDetails.
   ///
   /// In en, this message translates to:

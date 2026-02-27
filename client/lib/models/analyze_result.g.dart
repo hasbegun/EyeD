@@ -10,6 +10,7 @@ MatchInfo _$MatchInfoFromJson(Map<String, dynamic> json) => MatchInfo(
   hammingDistance: (json['hamming_distance'] as num).toDouble(),
   isMatch: json['is_match'] as bool,
   matchedIdentityId: json['matched_identity_id'] as String?,
+  matchedIdentityName: json['matched_identity_name'] as String?,
   bestRotation: (json['best_rotation'] as num).toInt(),
 );
 
@@ -17,6 +18,7 @@ Map<String, dynamic> _$MatchInfoToJson(MatchInfo instance) => <String, dynamic>{
   'hamming_distance': instance.hammingDistance,
   'is_match': instance.isMatch,
   'matched_identity_id': instance.matchedIdentityId,
+  'matched_identity_name': instance.matchedIdentityName,
   'best_rotation': instance.bestRotation,
 };
 

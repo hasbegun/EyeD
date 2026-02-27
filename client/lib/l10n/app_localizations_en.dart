@@ -377,6 +377,17 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get bulkEnrollRunning => 'Enrolling...';
+
+  @override
+  String bulkEnrollProgress(int processed) {
+    return 'Enrolling $processed';
+  }
+
+  @override
+  String get refresh => 'Refresh';
+
+  @override
   String get identityDetails => 'Identity Details';
 
   @override

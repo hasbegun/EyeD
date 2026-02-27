@@ -32,6 +32,7 @@ class MatchResult(BaseModel):
     hamming_distance: float
     is_match: bool
     matched_identity_id: Optional[str] = None
+    matched_identity_name: Optional[str] = None
     best_rotation: int = 0
 
 

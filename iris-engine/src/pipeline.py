@@ -65,7 +65,12 @@ def _build_pipeline_config(runtime: str) -> Optional[dict[str, Any]]:
 
 
 def get_pipeline():
-    """Get or create the singleton IRISPipeline instance."""
+    """Get or create the singleton IRISPipeline instance.
+
+    NOTE: The singleton is NOT thread-safe.  Do not call from multiple
+    threads concurrently — use :func:`create_pipeline` to obtain
+    per-thread instances for parallel batch work.
+    """
     global _pipeline
     if _pipeline is not None:
         return _pipeline
@@ -81,6 +86,17 @@ def get_pipeline():
     logger.info("Pipeline loaded in %.0f ms", elapsed)
 
     return _pipeline
+
+
+def create_pipeline():
+    """Create a **new** IRISPipeline instance (for per-thread use).
+
+    Each instance owns its own ONNX session and intermediate state,
+    so concurrent calls from different threads are safe.
+    """
+    iris = _get_iris_module()
+    config = _build_pipeline_config(settings.eyed_runtime)
+    return iris.IRISPipeline(config=config)
 
 
 def is_pipeline_loaded() -> bool:

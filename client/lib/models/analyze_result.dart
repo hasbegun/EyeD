@@ -10,6 +10,8 @@ class MatchInfo {
   final bool isMatch;
   @JsonKey(name: 'matched_identity_id')
   final String? matchedIdentityId;
+  @JsonKey(name: 'matched_identity_name')
+  final String? matchedIdentityName;
   @JsonKey(name: 'best_rotation')
   final int bestRotation;
 
@@ -17,6 +19,7 @@ class MatchInfo {
     required this.hammingDistance,
     required this.isMatch,
     this.matchedIdentityId,
+    this.matchedIdentityName,
     required this.bestRotation,
   });
 

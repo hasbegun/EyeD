@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'bulk_enroll_provider.dart';
 import 'gateway_client_provider.dart';
 
 /// Maximum number of automatic reconnect attempts before giving up.
@@ -14,7 +15,9 @@ const int reconnectCountdownSec = 30;
 const _healthPollInterval = Duration(seconds: 5);
 
 /// Timeout for each health-check request.
-const _healthTimeout = Duration(seconds: 3);
+/// Generous timeout avoids false "disconnected" when the backend is under
+/// heavy load (e.g. bulk enrollment with parallel ONNX inference).
+const _healthTimeout = Duration(seconds: 10);
 
 enum ConnectionStatus { connected, checking, disconnected }
 
@@ -104,6 +107,12 @@ class ConnectionNotifier extends StateNotifier<AppConnectionState> {
 
   Future<void> _pollHealth() async {
     if (!mounted || state.status != ConnectionStatus.connected) return;
+
+    // While bulk enrollment is streaming, the live SSE connection already
+    // proves the server is reachable.  Skip the health poll to avoid false
+    // "disconnected" reports caused by CPU saturation during ONNX inference.
+    if (_ref.read(bulkEnrollProvider).running) return;
+
     try {
       await _healthCheck();
     } catch (_) {

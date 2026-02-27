@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -7,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
 import '../models/enrollment.dart';
+import '../providers/bulk_enroll_provider.dart';
 import '../providers/dataset_provider.dart';
 import '../providers/gallery_provider.dart';
 import '../providers/gateway_client_provider.dart';
@@ -31,26 +31,27 @@ class _EnrollmentScreenState extends ConsumerState<EnrollmentScreen> {
   @override
   void dispose() {
     _nameController.dispose();
+    _bulkSubjectController.dispose();
     super.dispose();
   }
 
-  void _showBulkEnrollDialog(
-    BuildContext context,
-    String dataset,
-    GatewayClient client,
-  ) {
-    showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => _BulkEnrollDialog(
-        dataset: dataset,
-        client: client,
-        onComplete: () {
-          ref.read(galleryProvider.notifier).refresh();
-        },
-      ),
-    );
+  void _startBulkEnroll(String dataset) {
+    final subjectText = _bulkSubjectController.text.trim();
+    List<String>? subjects;
+    if (subjectText.isNotEmpty) {
+      subjects = subjectText
+          .split(',')
+          .map((s) => s.trim())
+          .where((s) => s.isNotEmpty)
+          .toList();
+    }
+    ref.read(bulkEnrollProvider.notifier).start(
+          dataset: dataset,
+          subjects: subjects,
+        );
   }
+
+  final _bulkSubjectController = TextEditingController();
 
   Future<void> _enroll() async {
     final browser = ref.read(enrollmentBrowserProvider);
@@ -256,19 +257,14 @@ class _EnrollmentScreenState extends ConsumerState<EnrollmentScreen> {
                                       : Text(l10n.enroll),
                                 ),
                                 const SizedBox(width: 8),
-                                OutlinedButton.icon(
-                                  onPressed:
-                                      browser.selectedDataset.isNotEmpty
-                                          ? () => _showBulkEnrollDialog(
-                                              context,
-                                              browser.selectedDataset,
-                                              ref.read(
-                                                  gatewayClientProvider),
-                                            )
-                                          : null,
-                                  icon: const Icon(Icons.upload_file,
-                                      size: 16),
-                                  label: Text(l10n.bulkEnroll),
+                                IconButton(
+                                  onPressed: () => ref
+                                      .read(enrollmentBrowserProvider
+                                          .notifier)
+                                      .refresh(),
+                                  icon: const Icon(Icons.refresh, size: 18),
+                                  tooltip: l10n.refresh,
+                                  visualDensity: VisualDensity.compact,
                                 ),
                               ],
                             ),
@@ -295,6 +291,18 @@ class _EnrollmentScreenState extends ConsumerState<EnrollmentScreen> {
                                       fontSize: 13),
                                 ),
                               ),
+
+                            const SizedBox(height: 16),
+
+                            // Bulk enroll panel
+                            _BulkEnrollPanel(
+                              dataset: browser.selectedDataset,
+                              subjectController: _bulkSubjectController,
+                              onStart: browser.selectedDataset.isNotEmpty
+                                  ? () => _startBulkEnroll(
+                                      browser.selectedDataset)
+                                  : null,
+                            ),
                           ],
                         ),
                       ),
@@ -407,233 +415,258 @@ class _ResultMessage extends StatelessWidget {
   }
 }
 
-class _BulkEnrollDialog extends StatefulWidget {
+class _BulkEnrollPanel extends ConsumerWidget {
   final String dataset;
-  final GatewayClient client;
-  final VoidCallback onComplete;
+  final TextEditingController subjectController;
+  final VoidCallback? onStart;
 
-  const _BulkEnrollDialog({
+  const _BulkEnrollPanel({
     required this.dataset,
-    required this.client,
-    required this.onComplete,
+    required this.subjectController,
+    required this.onStart,
   });
 
   @override
-  State<_BulkEnrollDialog> createState() => _BulkEnrollDialogState();
-}
-
-class _BulkEnrollDialogState extends State<_BulkEnrollDialog> {
-  final _subjectController = TextEditingController();
-  final _logEntries = <BulkEnrollResult>[];
-  final _scrollController = ScrollController();
-  StreamSubscription<BulkEnrollEvent>? _subscription;
-  int _processed = 0;
-  int _total = 0;
-  BulkEnrollSummary? _summary;
-  bool _running = false;
-  String? _error;
-
-  @override
-  void dispose() {
-    _subscription?.cancel();
-    _subjectController.dispose();
-    _scrollController.dispose();
-    super.dispose();
-  }
-
-  void _start() {
-    final subjectText = _subjectController.text.trim();
-    List<String>? subjects;
-    if (subjectText.isNotEmpty) {
-      subjects =
-          subjectText.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
-    }
-
-    setState(() {
-      _running = true;
-      _processed = 0;
-      _total = 0;
-      _summary = null;
-      _error = null;
-      _logEntries.clear();
-    });
-
-    final stream = widget.client.enrollBatch(
-      dataset: widget.dataset,
-      subjects: subjects,
-    );
-
-    _subscription = stream.listen(
-      (event) {
-        setState(() {
-          switch (event) {
-            case BulkEnrollProgress(:final result):
-              _logEntries.add(result);
-              _processed++;
-              // Auto-scroll to bottom
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                if (_scrollController.hasClients) {
-                  _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
-                }
-              });
-            case BulkEnrollDone(:final summary):
-              _summary = summary;
-              _total = summary.total;
-              _running = false;
-              widget.onComplete();
-          }
-        });
-      },
-      onError: (e) {
-        setState(() {
-          _error = e.toString();
-          _running = false;
-        });
-      },
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
     final cs = Theme.of(context).colorScheme;
     final semantic = Theme.of(context).extension<EyedSemanticColors>()!;
+    final s = ref.watch(bulkEnrollProvider);
 
-    return AlertDialog(
-      title: Text(
-        '${l10n.bulkEnroll}: ${widget.dataset}',
-        style: const TextStyle(fontSize: 18),
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: cs.outlineVariant),
       ),
-      content: SizedBox(
-        width: 600,
-        height: 450,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Subject filter
-            if (!_running && _summary == null) ...[
-              TextField(
-                controller: _subjectController,
-                decoration: InputDecoration(
-                  hintText: l10n.bulkEnrollSubjectFilter,
-                  hintStyle: const TextStyle(fontSize: 13),
-                ),
-                style: const TextStyle(fontSize: 13),
-              ),
-              const SizedBox(height: 12),
-            ],
-
-            // Progress bar
-            if (_running || _summary != null) ...[
-              Row(
-                children: [
-                  Expanded(
-                    child: LinearProgressIndicator(
-                      value: _total > 0 ? _processed / _total : null,
-                    ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Header bar
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: cs.surfaceContainer,
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(5)),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.upload_file, size: 16, color: cs.onSurfaceVariant),
+                const SizedBox(width: 8),
+                Text(
+                  l10n.bulkEnroll,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: cs.onSurface,
                   ),
-                  const SizedBox(width: 12),
+                ),
+                if (s.dataset != null) ...[
+                  const SizedBox(width: 8),
                   Text(
-                    _total > 0 ? '$_processed / $_total' : '$_processed',
-                    style: TextStyle(
-                        fontSize: 13, color: cs.onSurfaceVariant),
+                    s.dataset!,
+                    style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
                   ),
                 ],
-              ),
-              const SizedBox(height: 12),
-            ],
-
-            // Log entries
-            Expanded(
-              child: Container(
-                decoration: BoxDecoration(
-                  color: cs.surfaceContainerLowest,
-                  borderRadius: BorderRadius.circular(4),
-                  border: Border.all(color: cs.outlineVariant),
-                ),
-                child: ListView.builder(
-                  controller: _scrollController,
-                  padding: const EdgeInsets.all(8),
-                  itemCount: _logEntries.length,
-                  itemBuilder: (_, i) {
-                    final r = _logEntries[i];
-                    Color color;
-                    String status;
-                    if (r.error != null) {
-                      color = cs.error;
-                      status = r.error!;
-                    } else if (r.isDuplicate) {
-                      color = semantic.warning;
-                      status = l10n.bulkDuplicate;
-                    } else {
-                      color = semantic.success;
-                      status = l10n.bulkEnrolled;
-                    }
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 1),
-                      child: Text(
-                        '${r.subjectId}/${r.eyeSide} (${r.filename}): $status',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontFamily: 'monospace',
-                          color: color,
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ),
-
-            // Summary bar
-            if (_summary != null) ...[
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: cs.primary.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: cs.primary),
-                ),
-                child: Text(
-                  l10n.bulkEnrollComplete(
-                    _summary!.enrolled,
-                    _summary!.duplicates,
-                    _summary!.errors,
+                const Spacer(),
+                if (s.running)
+                  SizedBox(
+                    width: 12,
+                    height: 12,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: cs.primary),
                   ),
-                  style: TextStyle(color: cs.onSurface, fontSize: 13),
-                ),
-              ),
-            ],
+              ],
+            ),
+          ),
 
-            // Error
-            if (_error != null) ...[
-              const SizedBox(height: 12),
-              Text(
-                _error!,
-                style: TextStyle(color: cs.error, fontSize: 13),
-              ),
-            ],
-          ],
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // --- Idle: subject filter + start ---
+                if (s.idle) ...[
+                  TextField(
+                    controller: subjectController,
+                    decoration: InputDecoration(
+                      hintText: l10n.bulkEnrollSubjectFilter,
+                      hintStyle: const TextStyle(fontSize: 13),
+                    ),
+                    style: const TextStyle(fontSize: 13),
+                  ),
+                  const SizedBox(height: 8),
+                  ElevatedButton.icon(
+                    onPressed: onStart,
+                    icon: const Icon(Icons.play_arrow, size: 16),
+                    label: Text(l10n.bulkEnrollStart),
+                  ),
+                ],
+
+                // --- Running / Done: live counters ---
+                if (!s.idle) ...[
+                  if (s.running) ...[
+                    const LinearProgressIndicator(),
+                    const SizedBox(height: 10),
+                  ],
+
+                  // Counter chips
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 6,
+                    children: [
+                      _CounterChip(
+                        label: l10n.bulkEnrollProgress(s.processed),
+                        color: cs.onSurface,
+                        bg: cs.surfaceContainerHighest,
+                      ),
+                      _CounterChip(
+                        label: '${s.enrolled} ${l10n.bulkEnrolled}',
+                        color: semantic.success,
+                        bg: semantic.success.withValues(alpha: 0.1),
+                      ),
+                      if (s.duplicates > 0)
+                        _CounterChip(
+                          label: '${s.duplicates} ${l10n.bulkDuplicate}',
+                          color: semantic.warning,
+                          bg: semantic.warning.withValues(alpha: 0.1),
+                        ),
+                      if (s.errors > 0)
+                        _CounterChip(
+                          label: '${s.errors} ${l10n.errors.toLowerCase()}',
+                          color: cs.error,
+                          bg: cs.error.withValues(alpha: 0.1),
+                        ),
+                    ],
+                  ),
+                ],
+
+                // --- Summary banner ---
+                if (s.summary != null) ...[
+                  const SizedBox(height: 10),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: cs.primary.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: cs.primary),
+                    ),
+                    child: Text(
+                      l10n.bulkEnrollComplete(
+                        s.summary!.enrolled,
+                        s.summary!.duplicates,
+                        s.summary!.errors,
+                      ),
+                      style: TextStyle(color: cs.onSurface, fontSize: 13),
+                    ),
+                  ),
+                ],
+
+                // --- Report: dup & error entries only ---
+                if (s.reportEntries.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Container(
+                    constraints: const BoxConstraints(maxHeight: 150),
+                    decoration: BoxDecoration(
+                      color: cs.surfaceContainerLowest,
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(color: cs.outlineVariant),
+                    ),
+                    child: ListView.builder(
+                      shrinkWrap: true,
+                      padding: const EdgeInsets.all(8),
+                      itemCount: s.reportEntries.length,
+                      itemBuilder: (_, i) {
+                        final r = s.reportEntries[i];
+                        final isErr = r.error != null;
+                        final color =
+                            isErr ? cs.error : semantic.warning;
+                        final status = isErr
+                            ? r.error!
+                            : '${l10n.bulkDuplicate} (${r.duplicateIdentityId ?? "?"})';
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 1),
+                          child: Text(
+                            '${r.subjectId}/${r.eyeSide}: $status',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontFamily: 'monospace',
+                              color: color,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+
+                // --- Connection error ---
+                if (s.connectionError != null) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    s.connectionError!,
+                    style: TextStyle(color: cs.error, fontSize: 13),
+                  ),
+                ],
+
+                // --- Cancel / Close ---
+                if (s.running || s.done) ...[
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      if (s.running)
+                        TextButton(
+                          onPressed: () =>
+                              ref.read(bulkEnrollProvider.notifier).cancel(),
+                          child: Text(l10n.cancel),
+                        ),
+                      if (s.done)
+                        TextButton(
+                          onPressed: () =>
+                              ref.read(bulkEnrollProvider.notifier).dismiss(),
+                          child: Text(l10n.close),
+                        ),
+                    ],
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CounterChip extends StatelessWidget {
+  final String label;
+  final Color color;
+  final Color bg;
+
+  const _CounterChip({
+    required this.label,
+    required this.color,
+    required this.bg,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+          color: color,
         ),
       ),
-      actions: [
-        if (!_running && _summary == null)
-          ElevatedButton(
-            onPressed: _start,
-            child: Text(l10n.bulkEnrollStart),
-          ),
-        TextButton(
-          onPressed: () {
-            _subscription?.cancel();
-            if (_running && _processed > 0) {
-              widget.onComplete();
-            }
-            Navigator.of(context).pop();
-          },
-          child: Text(_summary != null ? l10n.close : l10n.cancel),
-        ),
-      ],
     );
   }
 }

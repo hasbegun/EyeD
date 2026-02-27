@@ -153,6 +153,17 @@ class DatasetBrowserNotifier extends StateNotifier<DatasetBrowserState> {
   void selectImage(DatasetImage? image) {
     state = state.copyWith(selectedImage: () => image);
   }
+
+  /// Reload datasets and current selection from the server.
+  Future<void> refresh() async {
+    final currentDataset = state.selectedDataset;
+    await _loadDatasets();
+    // Re-select the previous dataset if it still exists
+    if (currentDataset.isNotEmpty &&
+        state.datasets.any((d) => d.name == currentDataset)) {
+      await selectDataset(currentDataset);
+    }
+  }
 }
 
 final enrollmentBrowserProvider =

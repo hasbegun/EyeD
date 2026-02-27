@@ -159,11 +159,15 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
         Expanded(
           child: LayoutBuilder(
             builder: (context, constraints) {
-              final wide = constraints.maxWidth >= 560;
+              final wide = constraints.maxWidth >= 480;
 
               if (wide) {
                 // Side-by-side: browser left, results right.
-                final browserW = constraints.maxWidth < 700 ? 240.0 : 280.0;
+                final browserW = constraints.maxWidth < 600
+                    ? 220.0
+                    : constraints.maxWidth < 700
+                        ? 240.0
+                        : 280.0;
                 return Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -183,7 +187,7 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
 
               // Narrow: stacked vertically, both sections scrollable.
               final browserH =
-                  (constraints.maxHeight * 0.45).clamp(160.0, 360.0);
+                  (constraints.maxHeight * 0.55).clamp(260.0, 400.0);
               return Column(
                 children: [
                   SizedBox(
@@ -502,12 +506,27 @@ class _MatchResult extends StatelessWidget {
           ),
           const SizedBox(width: 12),
           Flexible(
-            child: Text(
-              isMatch
-                  ? l10n.matchIdentity(m.matchedIdentityId ?? "?")
-                  : l10n.noMatch,
-              style: TextStyle(color: color, fontSize: 13),
-              overflow: TextOverflow.ellipsis,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (isMatch && m.matchedIdentityName != null && (m.matchedIdentityName as String).isNotEmpty)
+                  Text(
+                    m.matchedIdentityName as String,
+                    style: TextStyle(
+                      color: color,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                Text(
+                  isMatch
+                      ? l10n.matchIdentity(m.matchedIdentityId ?? '?')
+                      : l10n.noMatch,
+                  style: TextStyle(color: color, fontSize: 12),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
             ),
           ),
         ],

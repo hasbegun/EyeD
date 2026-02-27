@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../providers/bulk_enroll_provider.dart';
 import '../providers/connection_provider.dart';
 import '../providers/locale_provider.dart';
 import '../providers/theme_mode_provider.dart';
@@ -33,6 +34,7 @@ class ShellScaffold extends ConsumerWidget {
           ),
         ),
         actions: [
+          _BulkEnrollChip(ref: ref, l10n: l10n),
           _StatusChip(ref: ref, l10n: l10n),
           const SizedBox(width: 8),
           _ThemeDropdown(ref: ref, l10n: l10n),
@@ -216,6 +218,42 @@ class _LocaleDropdown extends StatelessWidget {
           ),
         );
       }).toList(),
+    );
+  }
+}
+
+class _BulkEnrollChip extends StatelessWidget {
+  final WidgetRef ref;
+  final AppLocalizations l10n;
+
+  const _BulkEnrollChip({required this.ref, required this.l10n});
+
+  @override
+  Widget build(BuildContext context) {
+    final bulkState = ref.watch(bulkEnrollProvider);
+    if (!bulkState.running) return const SizedBox.shrink();
+
+    final cs = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            width: 12,
+            height: 12,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: cs.primary,
+            ),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            l10n.bulkEnrollProgress(bulkState.processed),
+            style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant),
+          ),
+        ],
+      ),
     );
   }
 }

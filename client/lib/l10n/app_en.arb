@@ -173,6 +173,14 @@
       "errors": { "type": "int" }
     }
   },
+  "bulkEnrollRunning": "Enrolling...",
+  "bulkEnrollProgress": "Enrolling {processed}",
+  "@bulkEnrollProgress": {
+    "placeholders": {
+      "processed": { "type": "int" }
+    }
+  },
+  "refresh": "Refresh",
 
   "identityDetails": "Identity Details",
   "templateId": "Template ID",

@@ -66,9 +66,10 @@ class DatasetBrowser extends ConsumerWidget {
               ),
             ),
 
-          // Subject chips
+          // Subject chips — Flexible so it shrinks in tight layouts
           if (state.subjects.isNotEmpty)
-            Container(
+            Flexible(
+              child: Container(
               constraints: const BoxConstraints(maxHeight: 120),
               decoration: BoxDecoration(
                 border:
@@ -117,6 +118,7 @@ class DatasetBrowser extends ConsumerWidget {
                 ),
               ),
             ),
+            ),
 
           // Loading indicator
           if (state.loading)
@@ -131,9 +133,10 @@ class DatasetBrowser extends ConsumerWidget {
               ),
             ),
 
-          // Image list/grid
+          // Image list/grid — higher flex so grid gets more space than chips
           if (!state.loading)
             Expanded(
+              flex: 3,
               child: mode == BrowserMode.thumbnailGrid
                   ? _ThumbnailGrid(
                       images: state.filteredImages,

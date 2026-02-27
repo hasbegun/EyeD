@@ -375,6 +375,17 @@ class AppLocalizationsKo extends AppLocalizations {
   }
 
   @override
+  String get bulkEnrollRunning => '등록 중...';
+
+  @override
+  String bulkEnrollProgress(int processed) {
+    return '등록 중 $processed건';
+  }
+
+  @override
+  String get refresh => '새로고침';
+
+  @override
   String get identityDetails => '신원 상세';
 
   @override

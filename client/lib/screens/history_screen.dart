@@ -39,7 +39,8 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
         final r = e.result;
         return r.deviceId.toLowerCase().contains(q) ||
             r.frameId.toLowerCase().contains(q) ||
-            (r.match?.matchedIdentityId?.toLowerCase().contains(q) ?? false);
+            (r.match?.matchedIdentityId?.toLowerCase().contains(q) ?? false) ||
+            (r.match?.matchedIdentityName?.toLowerCase().contains(q) ?? false);
       }).toList();
     }
 

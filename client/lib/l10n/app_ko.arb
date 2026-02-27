@@ -135,6 +135,9 @@
   "bulkEnrolled": "\ub4f1\ub85d\ub428",
   "bulkDuplicate": "\uc911\ubcf5",
   "bulkEnrollComplete": "\uc644\ub8cc: {enrolled}\uac74 \ub4f1\ub85d, {duplicates}\uac74 \uc911\ubcf5, {errors}\uac74 \uc624\ub958",
+  "bulkEnrollRunning": "\ub4f1\ub85d \uc911...",
+  "bulkEnrollProgress": "\ub4f1\ub85d \uc911 {processed}\uac74",
+  "refresh": "\uc0c8\ub85c\uace0\uce68",
 
   "identityDetails": "\uc2e0\uc6d0 \uc0c1\uc138",
   "templateId": "\ud15c\ud50c\ub9bf ID",

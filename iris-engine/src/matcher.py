@@ -185,6 +185,7 @@ class TemplateGallery:
             hamming_distance=best_distance,
             is_match=is_match,
             matched_identity_id=best_entry.identity_id if is_match and best_entry else None,
+            matched_identity_name=best_entry.identity_name if is_match and best_entry else None,
             best_rotation=best_rotation,
         )
 

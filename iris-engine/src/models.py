@@ -202,4 +202,7 @@ class HealthStatus(BaseModel):
     nats_connected: bool = False
     gallery_size: int = 0
     db_connected: bool = False
+    redis_connected: bool = False
+    pipeline_pool_size: int = 0
+    pipeline_pool_available: int = 0
     version: str = "0.2.0"

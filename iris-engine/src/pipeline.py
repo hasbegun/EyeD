@@ -126,6 +126,7 @@ def analyze(
     img_data: np.ndarray,
     eye_side: str = "left",
     image_id: Optional[str] = None,
+    pipeline_instance=None,
 ) -> dict:
     """Run the full Open-IRIS pipeline on a grayscale eye image.
 
@@ -133,6 +134,8 @@ def analyze(
         img_data: Grayscale numpy array (H, W).
         eye_side: "left" or "right".
         image_id: Optional identifier for tracing this image through the pipeline.
+        pipeline_instance: Optional pre-acquired IRISPipeline instance.
+            If None, uses the singleton (not thread-safe).
 
     Returns:
         Open-IRIS pipeline output dict with keys:
@@ -141,7 +144,7 @@ def analyze(
         - "metadata": dict with pipeline trace info (includes image_id)
     """
     iris = _get_iris_module()
-    pipeline = get_pipeline()
+    pipeline = pipeline_instance if pipeline_instance is not None else get_pipeline()
 
     ir_image = iris.IRImage(img_data=img_data, eye_side=eye_side, image_id=image_id)
 

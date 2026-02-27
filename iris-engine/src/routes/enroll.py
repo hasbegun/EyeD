@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import json
 import logging
-import threading
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -16,6 +16,7 @@ from fastapi.responses import StreamingResponse
 
 from ..config import settings
 from ..core import run_enroll_async
+from ..db import pack_codes
 from ..matcher import gallery
 from ..models import (
     BulkEnrollRequest,
@@ -25,24 +26,22 @@ from ..models import (
     EnrollResponse,
 )
 from ..pipeline import analyze, decode_jpeg_bytes
+from ..pipeline_pool import get_pipeline_pool
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["enroll"])
 
 # ---------------------------------------------------------------------------
-# Batch enrollment: 5 worker threads + shared pipeline with lock
+# Batch enrollment: N worker threads + pipeline pool (true parallelism)
 # ---------------------------------------------------------------------------
-# Open-IRIS IRISPipeline is NOT thread-safe (stores intermediate state on the
-# instance).  We serialize pipeline calls with a lock while keeping file I/O,
-# image decoding, and gallery operations parallel.  DB writes are queued and
-# processed asynchronously so they never block the pipeline threads.
-_BATCH_WORKERS = 5
+# Each worker borrows its own IRISPipeline instance from the pool, so all
+# threads run truly in parallel with no global lock.  DB writes go through
+# Redis for speed, then drain to Postgres in background batches.
 _batch_pool = ThreadPoolExecutor(
-    max_workers=_BATCH_WORKERS,
+    max_workers=settings.batch_workers,
     thread_name_prefix="bulk-enroll",
 )
-_pipeline_lock = threading.Lock()
 
 
 def _process_one(
@@ -52,10 +51,10 @@ def _process_one(
     identity_id: str,
     display_name: str,
 ) -> BulkEnrollResult:
-    """Worker: read image -> pipeline -> gallery check -> enroll.
+    """Worker: read image -> pipeline (from pool) -> gallery check -> enroll.
 
-    Runs in a batch thread.  Pipeline call is serialized via lock;
-    everything else (file I/O, decode, gallery ops) runs in parallel.
+    Runs in a batch thread.  Each thread borrows its own pipeline instance
+    from the pool, so all threads run truly in parallel.
     """
     result = BulkEnrollResult(
         subject_id=subject_id,
@@ -63,13 +62,20 @@ def _process_one(
         filename=Path(img_path_str).name,
         identity_id=identity_id,
     )
+    pool = get_pipeline_pool()
+    pipe = None
     try:
         # File I/O + decode — parallel across threads
         img = decode_jpeg_bytes(Path(img_path_str).read_bytes())
 
-        # Pipeline — serialized (singleton is not thread-safe)
-        with _pipeline_lock:
-            pipeline_result = analyze(img, eye_side=eye_side, image_id=identity_id)
+        # Acquire pipeline from pool (blocks if all busy, no global lock)
+        pipe = pool.acquire(timeout=30.0)
+        pipeline_result = analyze(
+            img, eye_side=eye_side, image_id=identity_id, pipeline_instance=pipe,
+        )
+        # Release immediately after use
+        pool.release(pipe)
+        pipe = None
 
         if pipeline_result.get("error"):
             result.error = str(pipeline_result["error"])
@@ -96,6 +102,10 @@ def _process_one(
     except Exception as exc:
         result.error = str(exc)
         logger.warning("Bulk enroll error for %s/%s: %s", subject_id, eye_side, exc)
+    finally:
+        # Ensure pipeline is returned even on error
+        if pipe is not None:
+            pool.release(pipe)
 
     return result
 
@@ -110,10 +120,9 @@ async def enroll_endpoint(req: EnrollRequest):
 async def enroll_batch(req: BulkEnrollRequest):
     """Bulk-enroll subjects from a dataset via SSE streaming.
 
-    5 worker threads consume from a queue.  Pipeline calls are serialized
-    (Open-IRIS singleton is not thread-safe).  File I/O, image decoding,
-    and gallery operations run in parallel.  DB writes are queued and
-    processed asynchronously.
+    Uses pipeline pool for true parallelism (each thread gets its own
+    ONNX session).  DB writes go through Redis for speed, then drain
+    to Postgres in background batches.
     """
     from .datasets import _LR_DIR_MAP, _parse_eye_side, _validate_dataset_name
 
@@ -164,47 +173,7 @@ async def enroll_batch(req: BulkEnrollRequest):
 
         ns = uuid.uuid5(uuid.NAMESPACE_URL, f"eyed:bulk:{req.dataset}")
 
-        # --- Async DB writer (processes writes one at a time) ---
-        db_queue: asyncio.Queue = asyncio.Queue()
-
-        async def _db_writer():
-            while True:
-                item = await db_queue.get()
-                if item is None:
-                    break
-                tid, identity_id, name, eye_side = item
-                try:
-                    from ..db import ensure_identity, pack_codes, persist_template
-
-                    entry = None
-                    with gallery._lock:
-                        for e in reversed(gallery._entries):
-                            if e.template_id == tid:
-                                entry = e
-                                break
-                    if entry and entry.template:
-                        await ensure_identity(identity_id, name)
-                        t = entry.template
-                        iris_bytes = pack_codes(t.iris_codes)
-                        mask_bytes = pack_codes(t.mask_codes)
-                        c0 = t.iris_codes[0]
-                        await persist_template(
-                            template_id=tid,
-                            identity_id=identity_id,
-                            eye_side=eye_side,
-                            iris_codes_bytes=iris_bytes,
-                            mask_codes_bytes=mask_bytes,
-                            width=c0.shape[1],
-                            height=c0.shape[0],
-                            n_scales=len(t.iris_codes),
-                            device_id="bulk-enroll",
-                        )
-                except Exception:
-                    logger.exception("DB persist failed for template %s", tid)
-
-        db_task = asyncio.create_task(_db_writer()) if settings.db_url else None
-
-        # --- Submit all work items to the 5-thread pool ---
+        # Submit all work items to thread pool
         futures = []
         for subject_id, eye_side, img_path in work:
             identity_id = str(uuid.uuid5(ns, subject_id))
@@ -221,8 +190,7 @@ async def enroll_batch(req: BulkEnrollRequest):
             for coro in asyncio.as_completed(futures):
                 try:
                     result: BulkEnrollResult = await coro
-                except Exception as exc:
-                    # Should not happen (_process_one catches everything)
+                except Exception:
                     logger.exception("Unexpected batch error")
                     error_count += 1
                     continue
@@ -234,21 +202,16 @@ async def enroll_batch(req: BulkEnrollRequest):
                     dup_count += 1
                 else:
                     enrolled_count += 1
-                    # Queue async DB write (non-blocking)
-                    if db_task and result.template_id:
-                        await db_queue.put((
+                    # Push to Redis (sub-ms) for background DB drain
+                    if result.template_id:
+                        await _push_persistence(
                             result.template_id,
                             result.identity_id,
                             f"{req.dataset}:{result.subject_id}",
                             result.eye_side,
-                        ))
+                        )
 
                 yield f"data: {result.json()}\n\n"
-
-            # Wait for remaining DB writes to finish
-            if db_task:
-                await db_queue.put(None)  # poison pill
-                await db_task
 
             # Notify other nodes
             if enrolled_count > 0:
@@ -276,8 +239,73 @@ async def enroll_batch(req: BulkEnrollRequest):
             # Cancel pending thread pool futures on client disconnect
             for f in futures:
                 f.cancel()
-            if db_task and not db_task.done():
-                await db_queue.put(None)
-                db_task.cancel()
 
     return StreamingResponse(_stream(), media_type="text/event-stream")
+
+
+async def _push_persistence(
+    template_id: str,
+    identity_id: str,
+    display_name: str,
+    eye_side: str,
+) -> None:
+    """Push enrollment data to Redis (preferred) or write directly to DB."""
+    # Look up the template entry in gallery
+    entry = None
+    with gallery._lock:
+        for e in reversed(gallery._entries):
+            if e.template_id == template_id:
+                entry = e
+                break
+
+    if not entry or not entry.template:
+        return
+
+    t = entry.template
+    iris_bytes = pack_codes(t.iris_codes)
+    mask_bytes = pack_codes(t.mask_codes)
+    c0 = t.iris_codes[0]
+
+    data = {
+        "template_id": template_id,
+        "identity_id": identity_id,
+        "identity_name": display_name,
+        "eye_side": eye_side,
+        "iris_codes_b64": base64.b64encode(iris_bytes).decode("ascii"),
+        "mask_codes_b64": base64.b64encode(mask_bytes).decode("ascii"),
+        "width": c0.shape[1],
+        "height": c0.shape[0],
+        "n_scales": len(t.iris_codes),
+        "quality_score": 0.0,
+        "device_id": "bulk-enroll",
+    }
+
+    # Prefer Redis (sub-ms), fall back to direct DB write
+    if settings.redis_url:
+        try:
+            from ..redis_cache import push_enrollment
+
+            await push_enrollment(data)
+            return
+        except Exception:
+            logger.warning("Redis push failed, falling back to direct DB write")
+
+    # Direct DB write fallback (when Redis is not configured or fails)
+    if settings.db_url:
+        try:
+            from ..db import ensure_identity, persist_template
+
+            await ensure_identity(identity_id, display_name)
+            await persist_template(
+                template_id=template_id,
+                identity_id=identity_id,
+                eye_side=eye_side,
+                iris_codes_bytes=iris_bytes,
+                mask_codes_bytes=mask_bytes,
+                width=c0.shape[1],
+                height=c0.shape[0],
+                n_scales=len(t.iris_codes),
+                device_id="bulk-enroll",
+            )
+        except Exception:
+            logger.exception("DB persist failed for template %s", template_id)

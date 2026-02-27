@@ -25,7 +25,26 @@ def _is_db_connected() -> bool:
     return pool is not None and pool.get_size() > 0
 
 
+def _is_redis_connected() -> bool:
+    if not settings.redis_url:
+        return False
+    from .redis_cache import is_connected
+
+    return is_connected()
+
+
+def _get_pool_stats() -> tuple[int, int]:
+    """Return (pool_size, available) for the pipeline pool."""
+    from .pipeline_pool import get_pipeline_pool
+
+    pool = get_pipeline_pool()
+    if pool is None:
+        return 0, 0
+    return pool.size, pool.available
+
+
 def get_health() -> HealthStatus:
+    pool_size, pool_available = _get_pool_stats()
     return HealthStatus(
         alive=True,
         ready=is_pipeline_loaded() and _nats_connected,
@@ -33,4 +52,7 @@ def get_health() -> HealthStatus:
         nats_connected=_nats_connected,
         gallery_size=gallery.size,
         db_connected=_is_db_connected(),
+        redis_connected=_is_redis_connected(),
+        pipeline_pool_size=pool_size,
+        pipeline_pool_available=pool_available,
     )

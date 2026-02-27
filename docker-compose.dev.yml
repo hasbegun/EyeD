@@ -14,3 +14,5 @@ services:
     environment:
       EYED_LOG_LEVEL: debug
       EYED_DB_URL: postgresql://eyed:eyed_dev@postgres:5432/eyed
+      EYED_REDIS_URL: redis://redis:6379/0
+      EYED_ENCRYPTION_KEY: ""   # generate: python3 -c "import os; print(os.urandom(32).hex())"

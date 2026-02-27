@@ -23,10 +23,12 @@ curl http://localhost:7000/health/ready
 ```
 
 Services will be available at:
-- **iris-engine API**: http://localhost:7000
-- **Swagger UI**: http://localhost:7000/docs
-- **NATS monitoring**: http://localhost:7001
-- **NATS client**: localhost:7002
+- **iris-engine API**: http://localhost:9500
+- **Swagger UI**: http://localhost:9500/docs
+- **NATS monitoring**: http://localhost:9501
+- **NATS client**: localhost:9502
+- **PostgreSQL**: localhost:9506
+- **Redis**: localhost:9508
 
 ## Project Structure
 
@@ -34,24 +36,43 @@ Services will be available at:
 eyed/
 ├── iris-engine/              # Iris recognition service (Python, wraps Open-IRIS)
 │   ├── Dockerfile            # Multi-target: cpu / cuda
-│   ├── requirements.txt
+│   ├── requirements.txt      # open-iris, nats-py, fastapi, uvicorn, asyncpg, redis
 │   ├── src/
-│   │   ├── main.py           # FastAPI app + NATS subscriber
-│   │   ├── pipeline.py       # Open-IRIS wrapper
+│   │   ├── main.py           # FastAPI app + lifespan (pipeline, pool, Redis, NATS, DB)
+│   │   ├── config.py         # Settings from environment variables (EYED_ prefix)
+│   │   ├── pipeline.py       # Open-IRIS wrapper: analyze(), create_pipeline()
+│   │   ├── pipeline_pool.py  # Pre-loaded pipeline pool for parallel batch work
 │   │   ├── matcher.py        # Hamming distance matcher + in-memory gallery
+│   │   ├── redis_cache.py    # Redis write-through cache for enrollment persistence
+│   │   ├── db_drain.py       # Background Redis → Postgres batch drain writer
+│   │   ├── db.py             # PostgreSQL connection pool + template persistence
+│   │   ├── core.py           # Shared enrollment logic (single + batch)
+│   │   ├── health.py         # Health check logic (pipeline, NATS, Redis, pool)
+│   │   ├── nats_service.py   # NATS messaging (analyze, enroll, gallery sync)
 │   │   ├── models.py         # Request/response models (Pydantic v1)
-│   │   ├── config.py         # Settings from environment variables
-│   │   └── health.py         # Health check logic
+│   │   └── routes/
+│   │       ├── health.py     # /health/alive, /health/ready
+│   │       ├── analyze.py    # /analyze (single image analysis)
+│   │       ├── enroll.py     # /enroll + /enroll/batch (pipeline pool + SSE)
+│   │       ├── gallery.py    # /gallery (list, detail, delete templates)
+│   │       └── datasets.py   # /datasets (list, browse, images)
 │   └── tests/
+│       ├── test_pipeline.py      # Unit tests + health endpoints
+│       ├── test_benchmark.py     # Per-frame latency benchmark
+│       ├── test_fnmr.py          # FNMR accuracy (CASIA1)
+│       └── test_fnmr_mmu2.py    # FNMR accuracy (MMU2)
+│
+├── client/                   # Flutter desktop app (Mac/Linux/Windows)
 │
 ├── proto/                    # gRPC protocol definitions (Phase 2+)
 │   └── capture.proto         # Capture device <-> gateway contract
 │
 ├── config/
-│   └── nats-server.conf      # NATS message broker config
+│   ├── nats-server.conf      # NATS message broker config
+│   └── init.sql              # PostgreSQL schema initialization
 │
 ├── docker-compose.yml        # Production-like stack (CPU)
-├── docker-compose.dev.yml    # Dev overrides (hot reload)
+├── docker-compose.dev.yml    # Dev overrides (hot reload, volume mounts)
 │
 ├── legacy/                   # Archived old code (BiometricLib, IrisAnalysis, etc.)
 ├── MODERN_ARCHITECTURE.md    # Full architecture design document
@@ -93,19 +114,28 @@ docker compose down
 ### Current (Phase 1)
 
 ```
-┌──────────┐       ┌──────────────┐
-│   NATS   │◄─────►│ iris-engine  │
-│  broker  │       │  (Open-IRIS) │
-└──────────┘       └──────┬───────┘
-                          │
-                     HTTP :7000
-                     /analyze
-                     /enroll
-                     /health/*
+                         ┌──────────────┐
+┌──────────┐             │ iris-engine   │
+│   NATS   │◄───────────►│  (Open-IRIS)  │
+│  broker  │             │               │         ┌──────────────┐
+└──────────┘             │ Pipeline Pool │────────►│  PostgreSQL  │
+                         │ (3 instances) │         │  (templates) │
+                         └──────┬────────┘         └──────────────┘
+                                │    │
+                           HTTP :9500│
+                           /analyze  │
+                           /enroll   │
+                           /health/* │
+                                     │             ┌──────────────┐
+                                     └────────────►│    Redis     │
+                                                   │ (write cache)│
+                                                   └──────────────┘
 ```
 
-- **iris-engine**: Python service wrapping [Open-IRIS 1.11.0](https://github.com/worldcoin/open-iris) (Worldcoin, MIT license). Handles segmentation (with image denoising), normalization, Gabor encoding, and Hamming distance matching. Supports image_id tracing through the pipeline.
-- **NATS**: Lightweight message broker for inter-service communication. Currently used for analyze/enroll messages; will be the backbone for all services.
+- **iris-engine**: Python service wrapping [Open-IRIS 1.11.0](https://github.com/worldcoin/open-iris) (Worldcoin, MIT license). Handles segmentation (with image denoising), normalization, Gabor encoding, and Hamming distance matching. Supports image_id tracing through the pipeline. Pipeline pool (3 pre-loaded instances) enables parallel batch enrollment.
+- **NATS**: Lightweight message broker for inter-service communication. Used for analyze/enroll messages and gallery sync between nodes.
+- **PostgreSQL**: Persistent storage for enrolled identities, iris templates, and match audit logs.
+- **Redis**: Write-through cache for bulk enrollment. Workers push to a Redis LIST (sub-ms), a background drain writer batches inserts to Postgres asynchronously.
 
 ### Planned (Phase 2+)
 
@@ -118,16 +148,24 @@ See `MODERN_ARCHITECTURE.md` for the full architecture including gateway (C++/Go
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET` | `/health/alive` | Liveness probe |
-| `GET` | `/health/ready` | Readiness probe (pipeline loaded + NATS connected) |
+| `GET` | `/health/ready` | Readiness probe (pipeline, NATS, Redis, pool status) |
 | `POST` | `/analyze` | Analyze eye image (multipart file upload) |
 | `POST` | `/analyze/json` | Analyze eye image (JSON with base64 JPEG) |
+| `POST` | `/analyze/detailed` | Analyze with intermediate visualizations |
 | `POST` | `/enroll` | Enroll identity with eye image |
+| `POST` | `/enroll/batch` | Bulk-enroll from dataset (SSE stream) |
 | `GET` | `/gallery/size` | Number of enrolled templates |
+| `GET` | `/gallery/list` | List all enrolled identities |
+| `GET` | `/gallery/template/{id}` | Template detail with iris code visualization |
+| `DELETE` | `/gallery/{identity_id}` | Remove identity from gallery |
+| `GET` | `/datasets` | List available datasets |
+| `GET` | `/datasets/{name}/subjects` | List subjects in a dataset |
+| `GET` | `/datasets/{name}/images` | List images for a subject |
 
 ### Analyze (file upload)
 
 ```bash
-curl -X POST http://localhost:7000/analyze \
+curl -X POST http://localhost:9500/analyze \
   -F "file=@eye_image.jpg" \
   -F "eye_side=left"
 ```
@@ -135,7 +173,7 @@ curl -X POST http://localhost:7000/analyze \
 ### Analyze (JSON)
 
 ```bash
-curl -X POST http://localhost:7000/analyze/json \
+curl -X POST http://localhost:9500/analyze/json \
   -H "Content-Type: application/json" \
   -d '{
     "frame_id": "test-001",
@@ -148,7 +186,7 @@ curl -X POST http://localhost:7000/analyze/json \
 ### Enroll
 
 ```bash
-curl -X POST http://localhost:7000/enroll \
+curl -X POST http://localhost:9500/enroll \
   -H "Content-Type: application/json" \
   -d '{
     "identity_id": "person-001",
@@ -157,6 +195,24 @@ curl -X POST http://localhost:7000/enroll \
     "eye_side": "left"
   }'
 ```
+
+### Bulk Enroll (SSE stream)
+
+```bash
+curl -N -X POST http://localhost:9500/enroll/batch \
+  -H "Content-Type: application/json" \
+  -d '{"dataset": "CASIA-Iris-Thousand"}'
+```
+
+Each enrolled image emits an SSE `data:` event with per-image result. The stream ends with an `event: done` summary.
+
+### Health Check
+
+```bash
+curl http://localhost:9500/health/ready | python3 -m json.tool
+```
+
+Response includes `pipeline_loaded`, `nats_connected`, `db_connected`, `redis_connected`, `pipeline_pool_size`, `pipeline_pool_available`, and `gallery_size`.
 
 ### NATS Interface
 
@@ -173,12 +229,33 @@ All settings are controlled via environment variables with `EYED_` prefix:
 |----------|---------|-------------|
 | `EYED_RUNTIME` | `cpu` | ONNX execution provider: `cpu`, `cuda`, `coreml` |
 | `EYED_NATS_URL` | `nats://nats:4222` | NATS server address |
+| `EYED_DB_URL` | `""` | PostgreSQL connection URL (empty = in-memory only) |
+| `EYED_REDIS_URL` | `""` | Redis connection URL (empty = direct DB writes) |
 | `EYED_MATCH_THRESHOLD` | `0.39` | Hamming distance threshold for matching |
 | `EYED_DEDUP_THRESHOLD` | `0.32` | Stricter threshold for enrollment dedup |
 | `EYED_ROTATION_SHIFT` | `15` | Max rotation shifts for matching |
+| `EYED_PIPELINE_POOL_SIZE` | `3` | Pre-loaded pipeline instances for parallel batch work |
+| `EYED_BATCH_WORKERS` | `3` | Thread pool size for bulk enrollment (should match pool size) |
+| `EYED_BATCH_DB_SIZE` | `50` | Batch INSERT size for Redis → Postgres drain |
+| `EYED_BATCH_DB_INTERVAL` | `1.0` | Seconds between drain flushes |
+| `EYED_ENCRYPTION_KEY` | `""` | AES-256-GCM key for template encryption (32 bytes as 64 hex chars; empty = disabled) |
+| `EYED_DATA_ROOT` | `/data/Iris` | Root directory for iris datasets |
 | `EYED_LOG_LEVEL` | `info` | Log level |
 
 ## Dependencies
+
+### iris-engine Python Dependencies
+
+```
+open-iris>=1.11,<2       # Core iris recognition pipeline
+nats-py>=2.6             # NATS messaging client
+fastapi>=0.100,<0.110    # HTTP API framework
+uvicorn[standard]>=0.24  # ASGI server
+python-multipart>=0.0.6  # File upload support
+asyncpg>=0.29            # PostgreSQL async driver
+redis[hiredis]>=5.0,<6   # Redis client (with C extension for speed)
+cryptography>=42.0,<44   # AES-256-GCM template encryption
+```
 
 ### Open-IRIS 1.11.0 Pinned Dependencies
 
@@ -216,12 +293,15 @@ distance = matcher.run(template_probe=probe, template_gallery=gallery)
 ## Testing
 
 ```bash
-# Run tests inside the container
-docker compose exec iris-engine pytest tests/ -v
+# Run tests (uses dev compose for volume-mounted tests/)
+docker compose -f docker-compose.yml -f docker-compose.dev.yml run --rm --no-deps iris-engine \
+  sh -c "pip install --quiet pytest 'httpx>=0.27,<0.28' && python3 -m pytest tests/ -v"
 
-# Or build a test image
-docker compose run --rm iris-engine pytest tests/ -v
+# Or via Makefile
+make test
 ```
+
+Tests include unit tests, health endpoint tests, per-frame latency benchmarks, and FNMR accuracy tests against CASIA1 and MMU2 datasets.
 
 ## Language Choices
 

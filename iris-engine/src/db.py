@@ -19,14 +19,25 @@ logger = logging.getLogger(__name__)
 
 
 def pack_codes(codes: list) -> bytes:
-    """Pack a list of numpy arrays into a compressed binary blob."""
+    """Pack a list of numpy arrays into a compressed, optionally encrypted blob.
+
+    If EYED_ENCRYPTION_KEY is set, the blob is AES-256-GCM encrypted.
+    """
     buf = io.BytesIO()
     np.savez_compressed(buf, *codes)
-    return buf.getvalue()
+    from .crypto import encrypt
+
+    return encrypt(buf.getvalue())
 
 
 def unpack_codes(data: bytes) -> list:
-    """Unpack a compressed binary blob back to list of numpy arrays."""
+    """Unpack a (possibly encrypted) binary blob back to list of numpy arrays.
+
+    Transparently decrypts AES-256-GCM blobs; passes through legacy NPZ data.
+    """
+    from .crypto import decrypt
+
+    data = decrypt(data)
     buf = io.BytesIO(data)
     npz = np.load(buf)
     return [npz[k] for k in sorted(npz.files)]

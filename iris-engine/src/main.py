@@ -22,10 +22,16 @@ async def lifespan(app: FastAPI):
     """Startup: load pipeline + init DB + connect NATS. Shutdown: cleanup."""
     logger.info("iris-engine node %s starting", nats_service.node_id)
 
-    # Load the Open-IRIS pipeline (downloads model on first run)
+    # Load the singleton Open-IRIS pipeline (for single-request endpoints)
     logger.info("Loading Open-IRIS pipeline...")
     get_pipeline()
     logger.info("Pipeline ready")
+
+    # Pre-load pipeline pool (for batch enrollment — true parallelism)
+    if settings.pipeline_pool_size > 0:
+        from .pipeline_pool import init_pipeline_pool
+
+        init_pipeline_pool(settings.pipeline_pool_size)
 
     # Initialize PostgreSQL (if configured)
     if settings.db_url:
@@ -39,14 +45,36 @@ async def lifespan(app: FastAPI):
     else:
         logger.info("No DB configured (EYED_DB_URL empty), running in-memory only")
 
+    # Initialize Redis (if configured)
+    if settings.redis_url:
+        from .redis_cache import init_redis
+
+        await init_redis(settings.redis_url)
+
+        # Start Redis -> DB drain writer (only if both Redis and DB exist)
+        if settings.db_url:
+            from .db_drain import enrollment_drain_writer
+
+            enrollment_drain_writer.start()
+
     # Connect to NATS (non-blocking — HTTP still works without NATS)
     await nats_service.connect()
     await nats_service.subscribe_all()
 
     yield
 
-    # Shutdown
+    # Shutdown (reverse order)
     await nats_service.drain()
+
+    if settings.redis_url and settings.db_url:
+        from .db_drain import enrollment_drain_writer
+
+        await enrollment_drain_writer.stop()
+
+    if settings.redis_url:
+        from .redis_cache import close_redis
+
+        await close_redis()
 
     if settings.db_url:
         from .db import close_pool, match_log_writer

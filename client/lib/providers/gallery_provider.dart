@@ -11,12 +11,18 @@ class GalleryNotifier extends StateNotifier<AsyncValue<List<GalleryIdentity>>> {
   }
 
   Future<void> refresh() async {
-    state = const AsyncValue.loading();
+    // Keep previous data visible while refreshing (avoid loading spinner flash)
+    if (!state.hasValue) {
+      state = const AsyncValue.loading();
+    }
     try {
       final list = await _ref.read(gatewayClientProvider).listGallery();
       state = AsyncValue.data(list);
     } catch (e, st) {
-      state = AsyncValue.error(e, st);
+      // Only show error if we had no previous data
+      if (!state.hasValue) {
+        state = AsyncValue.error(e, st);
+      }
     }
   }
 

@@ -319,13 +319,26 @@ class _EnrollmentScreenState extends ConsumerState<EnrollmentScreen> {
         const SizedBox(height: 8),
 
         // Gallery table
-        Text(
-          l10n.gallery,
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.w600,
-            color: cs.onSurface,
-          ),
+        Row(
+          children: [
+            Text(
+              l10n.gallery,
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+                color: cs.onSurface,
+              ),
+            ),
+            const SizedBox(width: 8),
+            IconButton(
+              icon: const Icon(Icons.refresh, size: 20),
+              tooltip: l10n.refresh,
+              onPressed: () => ref.read(galleryProvider.notifier).refresh(),
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
+              visualDensity: VisualDensity.compact,
+            ),
+          ],
         ),
         const SizedBox(height: 8),
 

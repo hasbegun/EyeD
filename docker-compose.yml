@@ -16,6 +16,16 @@ services:
       timeout: 3s
       retries: 5
 
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "9508:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
   nats:
     image: nats:2.10
     ports:
@@ -37,13 +47,18 @@ services:
         condition: service_started
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     volumes:
       - ./data:/data:ro
     environment:
       EYED_RUNTIME: cpu
       EYED_NATS_URL: nats://nats:4222
       EYED_DB_URL: postgresql://eyed:eyed_dev@postgres:5432/eyed
+      EYED_REDIS_URL: redis://redis:6379/0
+      EYED_ENCRYPTION_KEY: ""   # 64 hex chars to enable template encryption
       EYED_LOG_LEVEL: info
+      OMP_NUM_THREADS: "2"
     healthcheck:
       test: ["CMD", "python3", "-c", "import urllib.request,json; d=json.load(urllib.request.urlopen('http://localhost:7000/health/ready')); exit(0 if d.get('ready') else 1)"]
       interval: 5s

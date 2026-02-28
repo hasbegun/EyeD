@@ -24,20 +24,27 @@ class Settings(BaseSettings):
     rotation_shift: int = 15
 
     # Database (empty = pure in-memory mode, no persistence)
-    db_password_file: str = ""  # Docker secret, e.g. /run/secrets/db_password
+    # Docker secrets — file paths mounted at /run/secrets/*
+    db_user_file: str = ""
+    db_name_file: str = ""
+    db_password_file: str = ""
     db_url: str = ""
     db_pool_min: int = 2
     db_pool_max: int = 5
 
     @validator("db_url", always=True)
-    def _inject_db_password(cls, v: str, values: dict) -> str:
-        pw_file = values.get("db_password_file")
-        if pw_file and "__DB_PASSWORD__" in v:
-            try:
-                pw = Path(pw_file).read_text().strip()
-                v = v.replace("__DB_PASSWORD__", pw)
-            except OSError:
-                pass
+    def _inject_db_secrets(cls, v: str, values: dict) -> str:
+        for placeholder, key in (
+            ("__DB_USER__", "db_user_file"),
+            ("__DB_NAME__", "db_name_file"),
+            ("__DB_PASSWORD__", "db_password_file"),
+        ):
+            fpath = values.get(key)
+            if fpath and placeholder in v:
+                try:
+                    v = v.replace(placeholder, Path(fpath).read_text().strip())
+                except OSError:
+                    pass
         return v
 
     # Redis (empty = skip Redis, fall back to direct DB writes)

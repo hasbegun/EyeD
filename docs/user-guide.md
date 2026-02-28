@@ -16,7 +16,20 @@ Camera (RPi) ──► Server (Docker) ──► Browser (Dashboard)
 
 ## Getting Started
 
-### 1. Start the system
+### 1. Set up database credentials
+
+Database credentials are managed via Docker secrets in the `secrets/` directory (git-ignored). On a fresh clone, create the files:
+
+```bash
+mkdir -p secrets
+echo "eyed"     > secrets/db_user.txt
+echo "eyed"     > secrets/db_name.txt
+echo "eyed_dev" > secrets/db_password.txt
+```
+
+These files are read at container startup by both PostgreSQL and iris-engine. Never commit them to version control.
+
+### 2. Start the system
 
 ```bash
 docker compose up
@@ -127,6 +140,34 @@ For best results, eye images should be:
 - **Content**: Close-up of a single eye with iris clearly visible
 - **Quality**: In focus, well-lit, minimal occlusion from eyelids/eyelashes
 - **Minimum visible iris**: At least 30% of iris must be unoccluded
+
+## Changing Database Credentials
+
+To change the database password (or user/name):
+
+1. Stop all services:
+   ```bash
+   docker compose down
+   ```
+
+2. Edit the secret file(s):
+   ```bash
+   echo "new_password" > secrets/db_password.txt
+   ```
+
+3. Delete the existing database volume (required — PostgreSQL only reads credentials on first init):
+   ```bash
+   docker volume rm eyed_pgdata
+   ```
+
+4. Restart:
+   ```bash
+   docker compose up
+   ```
+
+PostgreSQL will re-initialize with the new credentials, and iris-engine will read them from the secret files automatically.
+
+**Note:** Deleting the volume erases all enrolled data. To change credentials without data loss, connect to the running database and use `ALTER USER` / `ALTER DATABASE` instead, then update the secret files to match.
 
 ## Troubleshooting
 

@@ -4,14 +4,16 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./config/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    secrets:
+      - db_password
     environment:
-      POSTGRES_DB: ${POSTGRES_DB}
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: eyed
+      POSTGRES_USER: eyed
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_password
     ports:
       - "9506:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      test: ["CMD-SHELL", "pg_isready -U eyed -d eyed"]
       interval: 5s
       timeout: 3s
       retries: 5
@@ -49,13 +51,16 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    secrets:
+      - db_password
     volumes:
       - ./data:/data:ro
       - he-keys:/keys:ro   # HE public key + eval keys (read-only)
     environment:
       EYED_RUNTIME: cpu
       EYED_NATS_URL: nats://nats:4222
-      EYED_DB_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      EYED_DB_PASSWORD_FILE: /run/secrets/db_password
+      EYED_DB_URL: postgresql://eyed:__DB_PASSWORD__@postgres:5432/eyed
       EYED_REDIS_URL: redis://redis:6379/0
       EYED_HE_ENABLED: "false"  # Set to "true" to enable HE (requires key-service)
       EYED_HE_KEY_DIR: /keys    # Shared volume with key-service
@@ -153,6 +158,10 @@ services:
       - -nats=nats://nats:4222
       - -image=/data/Iris/CASIA1/1/001_1_1.jpg
       - -timeout=120s
+
+secrets:
+  db_password:
+    file: ./secrets/db_password.txt
 
 volumes:
   pgdata:

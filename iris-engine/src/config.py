@@ -1,6 +1,7 @@
+from pathlib import Path
 from typing import Literal
 
-from pydantic import BaseSettings
+from pydantic import BaseSettings, validator
 
 
 class Settings(BaseSettings):
@@ -23,9 +24,21 @@ class Settings(BaseSettings):
     rotation_shift: int = 15
 
     # Database (empty = pure in-memory mode, no persistence)
+    db_password_file: str = ""  # Docker secret, e.g. /run/secrets/db_password
     db_url: str = ""
     db_pool_min: int = 2
     db_pool_max: int = 5
+
+    @validator("db_url", always=True)
+    def _inject_db_password(cls, v: str, values: dict) -> str:
+        pw_file = values.get("db_password_file")
+        if pw_file and "__DB_PASSWORD__" in v:
+            try:
+                pw = Path(pw_file).read_text().strip()
+                v = v.replace("__DB_PASSWORD__", pw)
+            except OSError:
+                pass
+        return v
 
     # Redis (empty = skip Redis, fall back to direct DB writes)
     redis_url: str = ""

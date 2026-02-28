@@ -5,6 +5,7 @@ import 'package:dio/dio.dart';
 
 import '../config/api_config.dart';
 import '../models/dataset.dart';
+import '../models/db_inspector_models.dart';
 import '../models/detailed_result.dart';
 import '../models/enrollment.dart';
 import '../models/health.dart';
@@ -236,6 +237,38 @@ class GatewayClient {
         }
       }
     }
+  }
+
+  // --- DB Inspector ---
+
+  Future<DbSchemaResponse> getDbSchema() async {
+    final r = await _engine.get<Map<String, dynamic>>('/admin/db/schema');
+    return DbSchemaResponse.fromJson(r.data!);
+  }
+
+  Future<DbStatsResponse> getDbStats() async {
+    final r = await _engine.get<Map<String, dynamic>>('/admin/db/stats');
+    return DbStatsResponse.fromJson(r.data!);
+  }
+
+  Future<TableRowsResponse> getTableRows(
+    String tableName, {
+    int limit = 50,
+    int offset = 0,
+  }) async {
+    final r = await _engine.get<Map<String, dynamic>>(
+      '/admin/db/tables/${Uri.encodeComponent(tableName)}/rows',
+      queryParameters: {'limit': limit, 'offset': offset},
+    );
+    return TableRowsResponse.fromJson(r.data!);
+  }
+
+  Future<RowDetailResponse> getRowDetail(
+      String tableName, String rowId) async {
+    final r = await _engine.get<Map<String, dynamic>>(
+      '/admin/db/tables/${Uri.encodeComponent(tableName)}/rows/${Uri.encodeComponent(rowId)}',
+    );
+    return RowDetailResponse.fromJson(r.data!);
   }
 
   void dispose() {

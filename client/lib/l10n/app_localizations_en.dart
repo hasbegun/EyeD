@@ -450,4 +450,57 @@ class AppLocalizationsEn extends AppLocalizations {
   String connectionRetryCount(int current, int max) {
     return 'Attempt $current of $max';
   }
+
+  @override
+  String get dbInspector => 'DB Inspector';
+
+  @override
+  String get dbSchema => 'Schema';
+
+  @override
+  String get dbBrowse => 'Browse';
+
+  @override
+  String get dbHeGuide => 'HE Guide';
+
+  @override
+  String get dbSelectTable => 'Select table...';
+
+  @override
+  String dbRowsTotal(int count) {
+    return '$count rows total';
+  }
+
+  @override
+  String get dbRelationships => 'Relationships';
+
+  @override
+  String get dbPrimaryKey => 'PK';
+
+  @override
+  String get dbForeignKey => 'FK';
+
+  @override
+  String get dbHeEncrypted => 'HE Encrypted';
+
+  @override
+  String get dbPlaintextNpz => 'Plaintext NPZ';
+
+  @override
+  String get dbSize => 'Size';
+
+  @override
+  String get dbFormat => 'Format';
+
+  @override
+  String get dbCiphertexts => 'Ciphertexts';
+
+  @override
+  String get dbHexPrefix => 'Hex prefix';
+
+  @override
+  String get dbRelatedData => 'Related data';
+
+  @override
+  String get dbSelectTablePrompt => 'Select a table to browse rows';
 }

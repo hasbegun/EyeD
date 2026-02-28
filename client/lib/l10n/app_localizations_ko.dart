@@ -448,4 +448,57 @@ class AppLocalizationsKo extends AppLocalizations {
   String connectionRetryCount(int current, int max) {
     return '시도 $current/$max';
   }
+
+  @override
+  String get dbInspector => 'DB 검사기';
+
+  @override
+  String get dbSchema => '스키마';
+
+  @override
+  String get dbBrowse => '탐색';
+
+  @override
+  String get dbHeGuide => 'HE 가이드';
+
+  @override
+  String get dbSelectTable => '테이블 선택...';
+
+  @override
+  String dbRowsTotal(int count) {
+    return '총 $count행';
+  }
+
+  @override
+  String get dbRelationships => '관계';
+
+  @override
+  String get dbPrimaryKey => 'PK';
+
+  @override
+  String get dbForeignKey => 'FK';
+
+  @override
+  String get dbHeEncrypted => 'HE 암호화';
+
+  @override
+  String get dbPlaintextNpz => '평문 NPZ';
+
+  @override
+  String get dbSize => '크기';
+
+  @override
+  String get dbFormat => '형식';
+
+  @override
+  String get dbCiphertexts => '암호문';
+
+  @override
+  String get dbHexPrefix => '16진수 접두어';
+
+  @override
+  String get dbRelatedData => '관련 데이터';
+
+  @override
+  String get dbSelectTablePrompt => '테이블을 선택하여 행을 탐색하세요';
 }

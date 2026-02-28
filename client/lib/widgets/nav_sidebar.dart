@@ -33,6 +33,7 @@ class NavSidebar extends ConsumerWidget {
       _NavItem('/devices', l10n.devices, Icons.videocam_outlined),
       _NavItem('/enrollment', l10n.enrollment, Icons.person_add_outlined),
       _NavItem('/analysis', l10n.analysis, Icons.play_circle_outlined),
+      _NavItem('/db-inspector', l10n.dbInspector, Icons.storage_outlined),
       _NavItem('/history', l10n.history, Icons.history_outlined),
       _NavItem('/admin', l10n.admin, Icons.settings_outlined),
     ];

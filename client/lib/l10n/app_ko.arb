@@ -161,5 +161,23 @@
   "reconnect": "\uc7ac\uc5f0\uacb0",
   "reconnecting": "\uc7ac\uc5f0\uacb0 \uc911...",
   "reconnectCountdown": "\uc7ac\uc5f0\uacb0 ({seconds}\ucd08)",
-  "connectionRetryCount": "\uc2dc\ub3c4 {current}/{max}"
+  "connectionRetryCount": "\uc2dc\ub3c4 {current}/{max}",
+
+  "dbInspector": "DB \uac80\uc0ac\uae30",
+  "dbSchema": "\uc2a4\ud0a4\ub9c8",
+  "dbBrowse": "\ud0d0\uc0c9",
+  "dbHeGuide": "HE \uac00\uc774\ub4dc",
+  "dbSelectTable": "\ud14c\uc774\ube14 \uc120\ud0dd...",
+  "dbRowsTotal": "\ucd1d {count}\ud589",
+  "dbRelationships": "\uad00\uacc4",
+  "dbPrimaryKey": "PK",
+  "dbForeignKey": "FK",
+  "dbHeEncrypted": "HE \uc554\ud638\ud654",
+  "dbPlaintextNpz": "\ud3c9\ubb38 NPZ",
+  "dbSize": "\ud06c\uae30",
+  "dbFormat": "\ud615\uc2dd",
+  "dbCiphertexts": "\uc554\ud638\ubb38",
+  "dbHexPrefix": "16\uc9c4\uc218 \uc811\ub450\uc5b4",
+  "dbRelatedData": "\uad00\ub828 \ub370\uc774\ud130",
+  "dbSelectTablePrompt": "\ud14c\uc774\ube14\uc744 \uc120\ud0dd\ud558\uc5ec \ud589\uc744 \ud0d0\uc0c9\ud558\uc138\uc694"
 }

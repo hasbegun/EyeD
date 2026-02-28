@@ -35,9 +35,9 @@ Map<String, dynamic> _$DatasetImageToJson(DatasetImage instance) =>
     };
 
 SubjectInfo _$SubjectInfoFromJson(Map<String, dynamic> json) => SubjectInfo(
-      subjectId: json['subject_id'] as String,
-      imageCount: (json['image_count'] as num).toInt(),
-    );
+  subjectId: json['subject_id'] as String,
+  imageCount: (json['image_count'] as num).toInt(),
+);
 
 Map<String, dynamic> _$SubjectInfoToJson(SubjectInfo instance) =>
     <String, dynamic>{

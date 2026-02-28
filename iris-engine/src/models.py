@@ -206,3 +206,71 @@ class HealthStatus(BaseModel):
     pipeline_pool_size: int = 0
     pipeline_pool_available: int = 0
     version: str = "0.2.0"
+
+
+# --- DB Inspector models ---
+
+
+class ByteaInfo(BaseModel):
+    """Metadata for a BYTEA column value (never transfers full blob)."""
+
+    size_bytes: int
+    prefix_hex: str  # first 32 bytes as hex
+    format: str  # "npz", "hev1", or "unknown"
+    he_ciphertext_count: Optional[int] = None
+    he_per_ct_sizes: Optional[List[int]] = None
+
+
+class ColumnInfo(BaseModel):
+    """Column metadata from information_schema."""
+
+    name: str
+    data_type: str
+    nullable: bool
+    default_value: Optional[str] = None
+    is_primary_key: bool = False
+
+
+class ForeignKeyInfo(BaseModel):
+    """Foreign key relationship."""
+
+    column: str
+    referenced_table: str
+    referenced_column: str
+
+
+class TableSchema(BaseModel):
+    """Full schema for one table."""
+
+    table_name: str
+    columns: List[ColumnInfo]
+    foreign_keys: List[ForeignKeyInfo]
+    row_count: int = 0
+
+
+class DbSchemaResponse(BaseModel):
+    tables: List[TableSchema]
+
+
+class TableRowsResponse(BaseModel):
+    table_name: str
+    columns: List[str]
+    rows: List[dict]
+    total_count: int
+    has_more: bool
+
+
+class RowDetailResponse(BaseModel):
+    table_name: str
+    primary_key: str
+    row: dict
+    related: Optional[dict] = None
+
+
+class DbStatsResponse(BaseModel):
+    identities_count: int
+    templates_count: int
+    match_log_count: int
+    he_templates_count: int
+    npz_templates_count: int
+    db_size_bytes: int

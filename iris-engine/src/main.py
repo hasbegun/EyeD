@@ -12,7 +12,7 @@ from .config import settings
 from .matcher import gallery
 from .pipeline import get_pipeline
 from . import nats_service
-from .routes import analyze, datasets, enroll, gallery as gallery_routes, health
+from .routes import analyze, datasets, db_inspector, enroll, gallery as gallery_routes, health
 
 logger = logging.getLogger(__name__)
 
@@ -111,3 +111,4 @@ app.include_router(analyze.router)
 app.include_router(enroll.router)
 app.include_router(gallery_routes.router)
 app.include_router(datasets.router)
+app.include_router(db_inspector.router)

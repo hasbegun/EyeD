@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import '../screens/admin_screen.dart';
 import '../screens/analysis_screen.dart';
 import '../screens/dashboard_screen.dart';
+import '../screens/db_inspector_screen.dart';
 import '../screens/devices_screen.dart';
 import '../screens/enrollment_screen.dart';
 import '../screens/history_screen.dart';
@@ -41,6 +42,10 @@ final appRouter = GoRouter(
         GoRoute(
           path: '/admin',
           builder: (_, __) => const AdminScreen(),
+        ),
+        GoRoute(
+          path: '/db-inspector',
+          builder: (_, __) => const DbInspectorScreen(),
         ),
       ],
     ),

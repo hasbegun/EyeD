@@ -937,6 +937,108 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Attempt {current} of {max}'**
   String connectionRetryCount(int current, int max);
+
+  /// No description provided for @dbInspector.
+  ///
+  /// In en, this message translates to:
+  /// **'DB Inspector'**
+  String get dbInspector;
+
+  /// No description provided for @dbSchema.
+  ///
+  /// In en, this message translates to:
+  /// **'Schema'**
+  String get dbSchema;
+
+  /// No description provided for @dbBrowse.
+  ///
+  /// In en, this message translates to:
+  /// **'Browse'**
+  String get dbBrowse;
+
+  /// No description provided for @dbHeGuide.
+  ///
+  /// In en, this message translates to:
+  /// **'HE Guide'**
+  String get dbHeGuide;
+
+  /// No description provided for @dbSelectTable.
+  ///
+  /// In en, this message translates to:
+  /// **'Select table...'**
+  String get dbSelectTable;
+
+  /// No description provided for @dbRowsTotal.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} rows total'**
+  String dbRowsTotal(int count);
+
+  /// No description provided for @dbRelationships.
+  ///
+  /// In en, this message translates to:
+  /// **'Relationships'**
+  String get dbRelationships;
+
+  /// No description provided for @dbPrimaryKey.
+  ///
+  /// In en, this message translates to:
+  /// **'PK'**
+  String get dbPrimaryKey;
+
+  /// No description provided for @dbForeignKey.
+  ///
+  /// In en, this message translates to:
+  /// **'FK'**
+  String get dbForeignKey;
+
+  /// No description provided for @dbHeEncrypted.
+  ///
+  /// In en, this message translates to:
+  /// **'HE Encrypted'**
+  String get dbHeEncrypted;
+
+  /// No description provided for @dbPlaintextNpz.
+  ///
+  /// In en, this message translates to:
+  /// **'Plaintext NPZ'**
+  String get dbPlaintextNpz;
+
+  /// No description provided for @dbSize.
+  ///
+  /// In en, this message translates to:
+  /// **'Size'**
+  String get dbSize;
+
+  /// No description provided for @dbFormat.
+  ///
+  /// In en, this message translates to:
+  /// **'Format'**
+  String get dbFormat;
+
+  /// No description provided for @dbCiphertexts.
+  ///
+  /// In en, this message translates to:
+  /// **'Ciphertexts'**
+  String get dbCiphertexts;
+
+  /// No description provided for @dbHexPrefix.
+  ///
+  /// In en, this message translates to:
+  /// **'Hex prefix'**
+  String get dbHexPrefix;
+
+  /// No description provided for @dbRelatedData.
+  ///
+  /// In en, this message translates to:
+  /// **'Related data'**
+  String get dbRelatedData;
+
+  /// No description provided for @dbSelectTablePrompt.
+  ///
+  /// In en, this message translates to:
+  /// **'Select a table to browse rows'**
+  String get dbSelectTablePrompt;
 }
 
 class _AppLocalizationsDelegate

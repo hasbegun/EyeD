@@ -215,5 +215,28 @@
       "current": { "type": "int" },
       "max": { "type": "int" }
     }
-  }
+  },
+
+  "dbInspector": "DB Inspector",
+  "dbSchema": "Schema",
+  "dbBrowse": "Browse",
+  "dbHeGuide": "HE Guide",
+  "dbSelectTable": "Select table...",
+  "dbRowsTotal": "{count} rows total",
+  "@dbRowsTotal": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "dbRelationships": "Relationships",
+  "dbPrimaryKey": "PK",
+  "dbForeignKey": "FK",
+  "dbHeEncrypted": "HE Encrypted",
+  "dbPlaintextNpz": "Plaintext NPZ",
+  "dbSize": "Size",
+  "dbFormat": "Format",
+  "dbCiphertexts": "Ciphertexts",
+  "dbHexPrefix": "Hex prefix",
+  "dbRelatedData": "Related data",
+  "dbSelectTablePrompt": "Select a table to browse rows"
 }

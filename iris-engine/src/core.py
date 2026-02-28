@@ -100,12 +100,31 @@ def run_enroll_sync(req: EnrollRequest) -> EnrollResponse:
             duplicate_identity_id=dup_id,
         )
 
-    template_id = gallery.enroll(
-        identity_id=req.identity_id,
-        identity_name=req.identity_name,
-        eye_side=req.eye_side,
-        template=template,
-    )
+    if settings.he_enabled:
+        from .he_context import compute_popcounts, encrypt_iris_code
+
+        he_iris_cts = [encrypt_iris_code(arr) for arr in template.iris_codes]
+        he_mask_cts = [encrypt_iris_code(arr) for arr in template.mask_codes]
+        iris_popcount = compute_popcounts(template.iris_codes)
+        mask_popcount = compute_popcounts(template.mask_codes)
+
+        template_id = gallery.enroll(
+            identity_id=req.identity_id,
+            identity_name=req.identity_name,
+            eye_side=req.eye_side,
+            template=None,
+            he_iris_cts=he_iris_cts,
+            he_mask_cts=he_mask_cts,
+            iris_popcount=iris_popcount,
+            mask_popcount=mask_popcount,
+        )
+    else:
+        template_id = gallery.enroll(
+            identity_id=req.identity_id,
+            identity_name=req.identity_name,
+            eye_side=req.eye_side,
+            template=template,
+        )
 
     return EnrollResponse(
         identity_id=req.identity_id,
@@ -129,28 +148,48 @@ async def run_enroll_async(req: EnrollRequest) -> EnrollResponse:
                         entry = e
                         break
 
-            if entry and entry.template:
+            if entry and (entry.template or entry.he_iris_cts):
                 await ensure_identity(req.identity_id, req.identity_name)
 
-                t = entry.template
-                iris_codes_bytes = pack_codes(t.iris_codes)
-                mask_codes_bytes = pack_codes(t.mask_codes)
+                if settings.he_enabled and entry.he_iris_cts:
+                    from .he_context import IRIS_CODE_SHAPE, pack_he_codes_from_cts
 
-                first_code = t.iris_codes[0]
-                height, width = first_code.shape[0], first_code.shape[1]
-                n_scales = len(t.iris_codes)
+                    iris_codes_bytes = pack_he_codes_from_cts(entry.he_iris_cts)
+                    mask_codes_bytes = pack_he_codes_from_cts(entry.he_mask_cts)
 
-                await persist_template(
-                    template_id=response.template_id,
-                    identity_id=req.identity_id,
-                    eye_side=req.eye_side,
-                    iris_codes_bytes=iris_codes_bytes,
-                    mask_codes_bytes=mask_codes_bytes,
-                    width=width,
-                    height=height,
-                    n_scales=n_scales,
-                    device_id=req.device_id,
-                )
+                    await persist_template(
+                        template_id=response.template_id,
+                        identity_id=req.identity_id,
+                        eye_side=req.eye_side,
+                        iris_codes_bytes=iris_codes_bytes,
+                        mask_codes_bytes=mask_codes_bytes,
+                        width=IRIS_CODE_SHAPE[1],
+                        height=IRIS_CODE_SHAPE[0],
+                        n_scales=len(entry.he_iris_cts),
+                        device_id=req.device_id,
+                        iris_popcount=entry.iris_popcount,
+                        mask_popcount=entry.mask_popcount,
+                    )
+                else:
+                    t = entry.template
+                    iris_codes_bytes = pack_codes(t.iris_codes)
+                    mask_codes_bytes = pack_codes(t.mask_codes)
+
+                    first_code = t.iris_codes[0]
+                    height, width = first_code.shape[0], first_code.shape[1]
+                    n_scales = len(t.iris_codes)
+
+                    await persist_template(
+                        template_id=response.template_id,
+                        identity_id=req.identity_id,
+                        eye_side=req.eye_side,
+                        iris_codes_bytes=iris_codes_bytes,
+                        mask_codes_bytes=mask_codes_bytes,
+                        width=width,
+                        height=height,
+                        n_scales=n_scales,
+                        device_id=req.device_id,
+                    )
                 logger.info("Template %s persisted to database", response.template_id)
 
                 from . import nats_service

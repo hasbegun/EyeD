@@ -238,7 +238,8 @@ All settings are controlled via environment variables with `EYED_` prefix:
 | `EYED_BATCH_WORKERS` | `3` | Thread pool size for bulk enrollment (should match pool size) |
 | `EYED_BATCH_DB_SIZE` | `50` | Batch INSERT size for Redis → Postgres drain |
 | `EYED_BATCH_DB_INTERVAL` | `1.0` | Seconds between drain flushes |
-| `EYED_ENCRYPTION_KEY` | `""` | AES-256-GCM key for template encryption (32 bytes as 64 hex chars; empty = disabled) |
+| `EYED_HE_ENABLED` | `false` | Enable OpenFHE BFV homomorphic encryption |
+| `EYED_HE_KEY_DIR` | `/keys` | Directory with HE key files (public.key, eval keys) |
 | `EYED_DATA_ROOT` | `/data/Iris` | Root directory for iris datasets |
 | `EYED_LOG_LEVEL` | `info` | Log level |
 
@@ -254,7 +255,7 @@ uvicorn[standard]>=0.24  # ASGI server
 python-multipart>=0.0.6  # File upload support
 asyncpg>=0.29            # PostgreSQL async driver
 redis[hiredis]>=5.0,<6   # Redis client (with C extension for speed)
-cryptography>=42.0,<44   # AES-256-GCM template encryption
+# openfhe (built from source in Dockerfile, not a pip dependency)
 ```
 
 ### Open-IRIS 1.11.0 Pinned Dependencies

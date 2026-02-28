@@ -83,8 +83,29 @@ async def gallery_template_detail(template_id: str):
     if row is None:
         raise HTTPException(status_code=404, detail="Template not found")
 
-    iris_codes = unpack_codes(bytes(row["iris_codes"]))
-    mask_codes = unpack_codes(bytes(row["mask_codes"]))
+    iris_raw = bytes(row["iris_codes"])
+    mask_raw = bytes(row["mask_codes"])
+
+    if settings.he_enabled:
+        from ..he_context import is_he_blob
+
+        if is_he_blob(iris_raw):
+            from ..key_client import request_decrypt_template
+
+            decrypted = await request_decrypt_template(iris_raw, mask_raw)
+            if decrypted is None:
+                raise HTTPException(
+                    status_code=503,
+                    detail="Key-service unavailable for template decryption",
+                )
+            iris_codes = decrypted["iris_codes"]
+            mask_codes = decrypted["mask_codes"]
+        else:
+            iris_codes = unpack_codes(iris_raw)
+            mask_codes = unpack_codes(mask_raw)
+    else:
+        iris_codes = unpack_codes(iris_raw)
+        mask_codes = unpack_codes(mask_raw)
 
     iris_code_b64 = None
     if iris_codes:

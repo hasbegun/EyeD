@@ -16,13 +16,16 @@ CREATE TABLE templates (
     template_id   UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     identity_id   UUID NOT NULL REFERENCES identities(identity_id) ON DELETE CASCADE,
     eye_side      TEXT NOT NULL CHECK (eye_side IN ('left', 'right')),
-    iris_codes    BYTEA NOT NULL,
-    mask_codes    BYTEA NOT NULL,
+    iris_codes    BYTEA NOT NULL,       -- NPZ (plaintext/AES) or HEv1 (HE ciphertext) blob
+    mask_codes    BYTEA NOT NULL,       -- NPZ (plaintext/AES) or HEv1 (HE ciphertext) blob
     width         INT NOT NULL,
     height        INT NOT NULL,
     n_scales      INT NOT NULL,
     quality_score REAL NOT NULL DEFAULT 0.0,
     device_id     TEXT,
+    -- Popcount metadata for HE Hamming distance computation (NULL when not using HE)
+    iris_popcount INT[],
+    mask_popcount INT[],
     enrolled_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 

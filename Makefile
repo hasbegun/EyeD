@@ -86,8 +86,8 @@ logs-storage:      ## Follow storage service logs
 
 # --- Testing ---
 
-test:              ## Run fast unit tests inside container
-	docker compose -f docker-compose.yml -f docker-compose.dev.yml exec iris-engine pytest tests/test_pipeline.py -v
+test:              ## Run all tests inside container
+	docker compose exec iris-engine pytest tests/ -v
 
 test-integration:  ## Run end-to-end integration test (gateway → NATS → iris-engine)
 	@docker compose stop capture-device 2>/dev/null || true

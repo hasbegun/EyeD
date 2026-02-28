@@ -18,26 +18,38 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 
-def pack_codes(codes: list) -> bytes:
-    """Pack a list of numpy arrays into a compressed, optionally encrypted blob.
+def pack_codes(codes: list, *, he_encrypt: bool = False) -> bytes:
+    """Pack a list of numpy arrays into a compressed blob.
 
-    If EYED_ENCRYPTION_KEY is set, the blob is AES-256-GCM encrypted.
+    Args:
+        codes: List of numpy arrays to pack.
+        he_encrypt: If True, use HE encryption (BFV ciphertexts, HEv1 prefix).
+                    If False, use plain compressed NPZ.
     """
+    if he_encrypt:
+        from .he_context import pack_he_codes
+
+        return pack_he_codes(codes)
+
     buf = io.BytesIO()
     np.savez_compressed(buf, *codes)
-    from .crypto import encrypt
-
-    return encrypt(buf.getvalue())
+    return buf.getvalue()
 
 
 def unpack_codes(data: bytes) -> list:
-    """Unpack a (possibly encrypted) binary blob back to list of numpy arrays.
+    """Unpack a binary blob back to list of numpy arrays or HE Ciphertext objects.
 
-    Transparently decrypts AES-256-GCM blobs; passes through legacy NPZ data.
+    Auto-detects format:
+    - HEv1 prefix → returns list of Ciphertext objects (no decryption)
+    - PK magic → plain NPZ arrays
     """
-    from .crypto import decrypt
+    from .he_context import is_he_blob
 
-    data = decrypt(data)
+    if is_he_blob(data):
+        from .he_context import unpack_he_codes
+
+        return unpack_he_codes(data)
+
     buf = io.BytesIO(data)
     npz = np.load(buf)
     return [npz[k] for k in sorted(npz.files)]
@@ -118,6 +130,8 @@ async def persist_template(
     n_scales: int,
     quality_score: float = 0.0,
     device_id: str = "",
+    iris_popcount: list[int] | None = None,
+    mask_popcount: list[int] | None = None,
 ) -> None:
     """Insert a template row."""
     pool = get_pool()
@@ -126,8 +140,9 @@ async def persist_template(
     await pool.execute(
         """INSERT INTO templates
            (template_id, identity_id, eye_side, iris_codes, mask_codes,
-            width, height, n_scales, quality_score, device_id)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)""",
+            width, height, n_scales, quality_score, device_id,
+            iris_popcount, mask_popcount)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)""",
         uuid_mod.UUID(template_id),
         uuid_mod.UUID(identity_id),
         eye_side,
@@ -138,6 +153,8 @@ async def persist_template(
         n_scales,
         quality_score,
         device_id,
+        iris_popcount,
+        mask_popcount,
     )
 
 
@@ -148,7 +165,8 @@ async def load_all_templates() -> list[dict]:
         return []
     rows = await pool.fetch(
         """SELECT t.template_id, t.identity_id, i.name, t.eye_side,
-                  t.iris_codes, t.mask_codes
+                  t.iris_codes, t.mask_codes,
+                  t.iris_popcount, t.mask_popcount
            FROM templates t
            JOIN identities i ON t.identity_id = i.identity_id"""
     )
@@ -163,7 +181,8 @@ async def load_template(template_id: str) -> Optional[dict]:
     row = await pool.fetchrow(
         """SELECT t.template_id, t.identity_id, i.name, t.eye_side,
                   t.iris_codes, t.mask_codes, t.width, t.height,
-                  t.n_scales, t.quality_score, t.device_id
+                  t.n_scales, t.quality_score, t.device_id,
+                  t.iris_popcount, t.mask_popcount
            FROM templates t
            JOIN identities i ON t.identity_id = i.identity_id
            WHERE t.template_id = $1""",

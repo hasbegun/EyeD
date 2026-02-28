@@ -97,8 +97,9 @@ class EnrollmentDrainWriter:
             await pool.executemany(
                 """INSERT INTO templates
                    (template_id, identity_id, eye_side, iris_codes, mask_codes,
-                    width, height, n_scales, quality_score, device_id)
-                   VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)""",
+                    width, height, n_scales, quality_score, device_id,
+                    iris_popcount, mask_popcount)
+                   VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)""",
                 [
                     (
                         uuid_mod.UUID(item["template_id"]),
@@ -111,6 +112,8 @@ class EnrollmentDrainWriter:
                         item["n_scales"],
                         item.get("quality_score", 0.0),
                         item.get("device_id", "bulk-enroll"),
+                        item.get("iris_popcount"),
+                        item.get("mask_popcount"),
                     )
                     for item in items
                 ],

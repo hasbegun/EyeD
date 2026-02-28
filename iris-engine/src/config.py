@@ -30,11 +30,10 @@ class Settings(BaseSettings):
     # Redis (empty = skip Redis, fall back to direct DB writes)
     redis_url: str = ""
 
-    # Encryption: set EYED_ENCRYPTION_KEY env var (32 bytes, hex or base64)
-    # to enable AES-256-GCM encryption of iris/mask templates at rest.
-    # If unset, templates are stored unencrypted (backward compatible).
-    # Key is read directly by crypto.py, NOT via this Settings class,
-    # to avoid the key appearing in logs or serialized health responses.
+    # Homomorphic Encryption (OpenFHE BFV)
+    he_enabled: bool = False        # Enable HE mode (requires key-service running)
+    he_key_dir: str = "/keys"       # Directory with public.key, eval_mult.key, eval_rotate.key
+    he_key_service_subject: str = "eyed.key"  # NATS subject prefix for key-service
 
     # Pipeline pool (pre-loaded instances for parallel batch work)
     pipeline_pool_size: int = 3

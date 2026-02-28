@@ -92,12 +92,31 @@ def _process_one(
             result.is_duplicate = True
             result.duplicate_identity_id = dup_id
         else:
-            tid = gallery.enroll(
-                identity_id=identity_id,
-                identity_name=display_name,
-                eye_side=eye_side,
-                template=template,
-            )
+            if settings.he_enabled:
+                from ..he_context import compute_popcounts, encrypt_iris_code
+
+                he_iris_cts = [encrypt_iris_code(arr) for arr in template.iris_codes]
+                he_mask_cts = [encrypt_iris_code(arr) for arr in template.mask_codes]
+                iris_popcount = compute_popcounts(template.iris_codes)
+                mask_popcount = compute_popcounts(template.mask_codes)
+
+                tid = gallery.enroll(
+                    identity_id=identity_id,
+                    identity_name=display_name,
+                    eye_side=eye_side,
+                    template=None,
+                    he_iris_cts=he_iris_cts,
+                    he_mask_cts=he_mask_cts,
+                    iris_popcount=iris_popcount,
+                    mask_popcount=mask_popcount,
+                )
+            else:
+                tid = gallery.enroll(
+                    identity_id=identity_id,
+                    identity_name=display_name,
+                    eye_side=eye_side,
+                    template=template,
+                )
             result.template_id = tid
     except Exception as exc:
         result.error = str(exc)
@@ -258,27 +277,49 @@ async def _push_persistence(
                 entry = e
                 break
 
-    if not entry or not entry.template:
+    if not entry or not (entry.template or entry.he_iris_cts):
         return
 
-    t = entry.template
-    iris_bytes = pack_codes(t.iris_codes)
-    mask_bytes = pack_codes(t.mask_codes)
-    c0 = t.iris_codes[0]
+    if settings.he_enabled and entry.he_iris_cts:
+        from ..he_context import IRIS_CODE_SHAPE, pack_he_codes_from_cts
 
-    data = {
-        "template_id": template_id,
-        "identity_id": identity_id,
-        "identity_name": display_name,
-        "eye_side": eye_side,
-        "iris_codes_b64": base64.b64encode(iris_bytes).decode("ascii"),
-        "mask_codes_b64": base64.b64encode(mask_bytes).decode("ascii"),
-        "width": c0.shape[1],
-        "height": c0.shape[0],
-        "n_scales": len(t.iris_codes),
-        "quality_score": 0.0,
-        "device_id": "bulk-enroll",
-    }
+        iris_bytes = pack_he_codes_from_cts(entry.he_iris_cts)
+        mask_bytes = pack_he_codes_from_cts(entry.he_mask_cts)
+
+        data = {
+            "template_id": template_id,
+            "identity_id": identity_id,
+            "identity_name": display_name,
+            "eye_side": eye_side,
+            "iris_codes_b64": base64.b64encode(iris_bytes).decode("ascii"),
+            "mask_codes_b64": base64.b64encode(mask_bytes).decode("ascii"),
+            "width": IRIS_CODE_SHAPE[1],
+            "height": IRIS_CODE_SHAPE[0],
+            "n_scales": len(entry.he_iris_cts),
+            "quality_score": 0.0,
+            "device_id": "bulk-enroll",
+            "iris_popcount": entry.iris_popcount,
+            "mask_popcount": entry.mask_popcount,
+        }
+    else:
+        t = entry.template
+        iris_bytes = pack_codes(t.iris_codes)
+        mask_bytes = pack_codes(t.mask_codes)
+        c0 = t.iris_codes[0]
+
+        data = {
+            "template_id": template_id,
+            "identity_id": identity_id,
+            "identity_name": display_name,
+            "eye_side": eye_side,
+            "iris_codes_b64": base64.b64encode(iris_bytes).decode("ascii"),
+            "mask_codes_b64": base64.b64encode(mask_bytes).decode("ascii"),
+            "width": c0.shape[1],
+            "height": c0.shape[0],
+            "n_scales": len(t.iris_codes),
+            "quality_score": 0.0,
+            "device_id": "bulk-enroll",
+        }
 
     # Prefer Redis (sub-ms), fall back to direct DB write
     if settings.redis_url:

@@ -33,6 +33,14 @@ async def lifespan(app: FastAPI):
 
         init_pipeline_pool(settings.pipeline_pool_size)
 
+    # Initialize OpenFHE BFV context (if HE mode enabled)
+    if settings.he_enabled:
+        from .he_context import init_context
+
+        logger.info("Initializing HE context (key_dir=%s)...", settings.he_key_dir)
+        init_context(key_dir=settings.he_key_dir)
+        logger.info("HE context ready")
+
     # Initialize PostgreSQL (if configured)
     if settings.db_url:
         from .db import init_pool, match_log_writer

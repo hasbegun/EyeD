@@ -6,6 +6,7 @@ import logging
 import threading
 import uuid
 from dataclasses import dataclass, field
+from typing import List
 from typing import Optional
 
 from .config import settings
@@ -22,7 +23,12 @@ class GalleryEntry:
     template_id: str
     identity_name: str
     eye_side: str
-    template: object  # Open-IRIS IrisTemplate
+    template: object  # Open-IRIS IrisTemplate (None when HE enabled)
+    # HE-mode fields (populated only when settings.he_enabled is True)
+    he_iris_cts: list = field(default_factory=list)
+    he_mask_cts: list = field(default_factory=list)
+    iris_popcount: list = field(default_factory=list)
+    mask_popcount: list = field(default_factory=list)
 
 
 class TemplateGallery:
@@ -43,30 +49,50 @@ class TemplateGallery:
 
         Replaces the current in-memory gallery atomically.  Returns the
         number of templates loaded.
+
+        When HE is enabled, templates are loaded as Ciphertext objects
+        (no decryption needed — matching operates on ciphertexts).
         """
         from .db import load_all_templates, unpack_codes
 
         rows = await load_all_templates()
 
-        from iris import IrisTemplate
-
         new_entries: list[GalleryEntry] = []
         for row in rows:
             try:
-                iris_codes = unpack_codes(bytes(row["iris_codes"]))
-                mask_codes = unpack_codes(bytes(row["mask_codes"]))
-                template = IrisTemplate(
-                    iris_codes=iris_codes,
-                    mask_codes=mask_codes,
-                    iris_code_version="v0.1",
-                )
-                new_entries.append(GalleryEntry(
-                    identity_id=str(row["identity_id"]),
-                    template_id=str(row["template_id"]),
-                    identity_name=row["name"] or "",
-                    eye_side=row["eye_side"],
-                    template=template,
-                ))
+                if settings.he_enabled:
+                    # HE mode: unpack returns Ciphertext objects
+                    iris_cts = unpack_codes(bytes(row["iris_codes"]))
+                    mask_cts = unpack_codes(bytes(row["mask_codes"]))
+                    new_entries.append(GalleryEntry(
+                        identity_id=str(row["identity_id"]),
+                        template_id=str(row["template_id"]),
+                        identity_name=row["name"] or "",
+                        eye_side=row["eye_side"],
+                        template=None,
+                        he_iris_cts=iris_cts,
+                        he_mask_cts=mask_cts,
+                        iris_popcount=row.get("iris_popcount") or [],
+                        mask_popcount=row.get("mask_popcount") or [],
+                    ))
+                else:
+                    # Plaintext mode (existing behavior)
+                    from iris import IrisTemplate
+
+                    iris_codes = unpack_codes(bytes(row["iris_codes"]))
+                    mask_codes = unpack_codes(bytes(row["mask_codes"]))
+                    template = IrisTemplate(
+                        iris_codes=iris_codes,
+                        mask_codes=mask_codes,
+                        iris_code_version="v0.1",
+                    )
+                    new_entries.append(GalleryEntry(
+                        identity_id=str(row["identity_id"]),
+                        template_id=str(row["template_id"]),
+                        identity_name=row["name"] or "",
+                        eye_side=row["eye_side"],
+                        template=template,
+                    ))
             except Exception:
                 logger.exception("Failed to load template %s", row["template_id"])
 
@@ -110,6 +136,11 @@ class TemplateGallery:
         identity_name: str,
         eye_side: str,
         template: object,
+        *,
+        he_iris_cts: list | None = None,
+        he_mask_cts: list | None = None,
+        iris_popcount: list | None = None,
+        mask_popcount: list | None = None,
     ) -> str:
         """Add a template to the gallery. Returns template_id."""
         template_id = str(uuid.uuid4())
@@ -119,14 +150,19 @@ class TemplateGallery:
             identity_name=identity_name,
             eye_side=eye_side,
             template=template,
+            he_iris_cts=he_iris_cts or [],
+            he_mask_cts=he_mask_cts or [],
+            iris_popcount=iris_popcount or [],
+            mask_popcount=mask_popcount or [],
         )
         with self._lock:
             self._entries.append(entry)
         logger.info(
-            "Enrolled template %s for identity %s (%s eye)",
+            "Enrolled template %s for identity %s (%s eye, he=%s)",
             template_id,
             identity_id,
             eye_side,
+            bool(he_iris_cts),
         )
         return template_id
 
@@ -135,7 +171,29 @@ class TemplateGallery:
 
         Returns identity_id if duplicate found, None otherwise.
         """
-        result = self._match(probe_template, settings.dedup_threshold)
+        if settings.he_enabled:
+            result = self._match_he(probe_template, settings.dedup_threshold)
+        else:
+            result = self._match(probe_template, settings.dedup_threshold)
+        if result and result.is_match:
+            return result.matched_identity_id
+        return None
+
+    def check_duplicate_with_cts(
+        self,
+        iris_cts: list,
+        mask_cts: list,
+        iris_popcount: list,
+        mask_popcount: list,
+    ) -> Optional[str]:
+        """Check for duplicate using pre-encrypted ciphertexts.
+
+        Avoids double-encryption when enrollment already has encrypted the probe.
+        """
+        result = self._match_he_with_cts(
+            iris_cts, mask_cts, iris_popcount, mask_popcount,
+            settings.dedup_threshold,
+        )
         if result and result.is_match:
             return result.matched_identity_id
         return None
@@ -145,6 +203,8 @@ class TemplateGallery:
 
         Returns MatchResult if match found, None if gallery is empty.
         """
+        if settings.he_enabled:
+            return self._match_he(probe_template, settings.match_threshold)
         return self._match(probe_template, settings.match_threshold)
 
     def _match(
@@ -188,6 +248,69 @@ class TemplateGallery:
             matched_identity_name=best_entry.identity_name if is_match and best_entry else None,
             best_rotation=best_rotation,
         )
+
+    def _match_he(
+        self, probe_template: object, threshold: float
+    ) -> Optional[MatchResult]:
+        """Run HE-encrypted 1:N matching.
+
+        The probe comes as a plaintext IrisTemplate from the pipeline.
+        Encrypts it here, then matches against encrypted gallery entries.
+        """
+        from .he_matcher import encrypt_probe
+
+        iris_cts, mask_cts, iris_pop, mask_pop = encrypt_probe(probe_template)
+        return self._match_he_with_cts(
+            iris_cts, mask_cts, iris_pop, mask_pop, threshold
+        )
+
+    def _match_he_with_cts(
+        self,
+        iris_cts: list,
+        mask_cts: list,
+        iris_popcount: list,
+        mask_popcount: list,
+        threshold: float,
+    ) -> Optional[MatchResult]:
+        """HE matching with pre-encrypted probe ciphertexts."""
+        from .he_context import has_secret_key
+        from .he_matcher import he_match_1n_local
+
+        with self._lock:
+            entries = list(self._entries)
+
+        if not entries:
+            return MatchResult(hamming_distance=1.0, is_match=False)
+
+        if has_secret_key():
+            # PoC mode: decrypt locally (synchronous, no NATS)
+            return he_match_1n_local(
+                iris_cts, mask_cts, iris_popcount, mask_popcount,
+                entries, threshold,
+            )
+        else:
+            # Production mode: send to key-service via NATS
+            import asyncio
+
+            from .he_matcher import he_match_1n
+
+            coro = he_match_1n(
+                iris_cts, mask_cts, iris_popcount, mask_popcount,
+                entries, threshold,
+            )
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                loop = None
+
+            if loop and loop.is_running():
+                # Already in async context — create a new thread to run the coroutine
+                import concurrent.futures
+
+                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                    return pool.submit(asyncio.run, coro).result()
+            else:
+                return asyncio.run(coro)
 
 
 # Module-level singleton

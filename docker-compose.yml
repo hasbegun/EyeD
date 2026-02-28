@@ -51,12 +51,14 @@ services:
         condition: service_healthy
     volumes:
       - ./data:/data:ro
+      - he-keys:/keys:ro   # HE public key + eval keys (read-only)
     environment:
       EYED_RUNTIME: cpu
       EYED_NATS_URL: nats://nats:4222
       EYED_DB_URL: postgresql://eyed:eyed_dev@postgres:5432/eyed
       EYED_REDIS_URL: redis://redis:6379/0
-      EYED_ENCRYPTION_KEY: ""   # 64 hex chars to enable template encryption
+      EYED_HE_ENABLED: "false"  # Set to "true" to enable HE (requires key-service)
+      EYED_HE_KEY_DIR: /keys    # Shared volume with key-service
       EYED_LOG_LEVEL: info
       OMP_NUM_THREADS: "2"
     healthcheck:
@@ -65,6 +67,19 @@ services:
       timeout: 3s
       retries: 30
       start_period: 60s
+
+  key-service:
+    build:
+      context: .
+      dockerfile: key-service/Dockerfile
+    depends_on:
+      - nats
+    environment:
+      EYED_NATS_URL: nats://nats:4222
+      EYED_HE_KEY_DIR: /keys
+      EYED_LOG_LEVEL: info
+    volumes:
+      - he-keys:/keys    # Persistent HE key storage
 
   gateway:
     build:
@@ -142,3 +157,4 @@ services:
 volumes:
   pgdata:
   archive-data:
+  he-keys:

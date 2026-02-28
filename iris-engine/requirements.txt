@@ -7,4 +7,6 @@ uvicorn[standard]>=0.24
 python-multipart>=0.0.6
 asyncpg>=0.29
 redis[hiredis]>=5.0,<6
-cryptography>=42.0,<44
+# OpenFHE Python bindings — no PyPI wheel for Python 3.10, built from source in Dockerfile
+# Provides BFV homomorphic encryption for iris code matching
+# openfhe (built from source, see Dockerfile)

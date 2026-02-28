@@ -93,11 +93,18 @@ def run_enroll_sync(req: EnrollRequest) -> EnrollResponse:
 
     dup_id = gallery.check_duplicate(template)
     if dup_id is not None:
+        dup_name = None
+        with gallery._lock:
+            for e in gallery._entries:
+                if e.identity_id == dup_id:
+                    dup_name = e.identity_name
+                    break
         return EnrollResponse(
             identity_id=req.identity_id,
             template_id="",
             is_duplicate=True,
             duplicate_identity_id=dup_id,
+            duplicate_identity_name=dup_name,
         )
 
     if settings.he_enabled:

@@ -26,6 +26,8 @@ class EnrollResponse {
   final bool isDuplicate;
   @JsonKey(name: 'duplicate_identity_id')
   final String? duplicateIdentityId;
+  @JsonKey(name: 'duplicate_identity_name')
+  final String? duplicateIdentityName;
   final String? error;
 
   const EnrollResponse({
@@ -33,6 +35,7 @@ class EnrollResponse {
     required this.templateId,
     required this.isDuplicate,
     this.duplicateIdentityId,
+    this.duplicateIdentityName,
     this.error,
   });
 

@@ -1,18 +1,23 @@
 import 'dart:convert';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import '../l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:uuid/uuid.dart';
 
 import '../models/enrollment.dart';
 import '../providers/bulk_enroll_provider.dart';
 import '../providers/dataset_provider.dart';
 import '../providers/gallery_provider.dart';
 import '../providers/gateway_client_provider.dart';
+import '../providers/individual_enroll_provider.dart';
+import '../providers/local_bulk_enroll_provider.dart';
 import '../services/gateway_client.dart';
 import '../theme/eyed_theme.dart';
 import '../widgets/dataset_browser.dart';
+
+/// Remembers the last directory used by any file picker on this screen.
+final _lastPickerDirectoryProvider = StateProvider<String?>((ref) => null);
 
 class EnrollmentScreen extends ConsumerStatefulWidget {
   const EnrollmentScreen({super.key});
@@ -21,16 +26,428 @@ class EnrollmentScreen extends ConsumerStatefulWidget {
   ConsumerState<EnrollmentScreen> createState() => _EnrollmentScreenState();
 }
 
-class _EnrollmentScreenState extends ConsumerState<EnrollmentScreen> {
+class _EnrollmentScreenState extends ConsumerState<EnrollmentScreen>
+    with SingleTickerProviderStateMixin {
+  late final TabController _tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 3, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final cs = Theme.of(context).colorScheme;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Header bar
+        Row(
+          children: [
+            Icon(Icons.person_add_alt_1, size: 22, color: cs.primary),
+            const SizedBox(width: 10),
+            Text(
+              l10n.enrollment,
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.w600,
+                color: cs.onSurface,
+              ),
+            ),
+            const SizedBox(width: 24),
+            Expanded(
+              child: TabBar(
+                controller: _tabController,
+                isScrollable: true,
+                tabAlignment: TabAlignment.start,
+                tabs: [
+                  Tab(text: l10n.individualEnroll),
+                  Tab(text: l10n.bulkEnrollTab),
+                  Tab(text: l10n.galleryTab),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+
+        // Tab content
+        Expanded(
+          child: TabBarView(
+            controller: _tabController,
+            children: const [
+              _IndividualEnrollTab(),
+              _BulkEnrollTab(),
+              _GalleryTab(),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// =============================================================================
+// Tab 1: Individual Enroll
+// =============================================================================
+
+class _IndividualEnrollTab extends ConsumerStatefulWidget {
+  const _IndividualEnrollTab();
+
+  @override
+  ConsumerState<_IndividualEnrollTab> createState() =>
+      _IndividualEnrollTabState();
+}
+
+class _IndividualEnrollTabState extends ConsumerState<_IndividualEnrollTab>
+    with AutomaticKeepAliveClientMixin {
   final _nameController = TextEditingController();
-  String _eyeSide = 'left';
-  bool _enrolling = false;
-  EnrollResponse? _enrollResult;
-  String? _enrollError;
+
+  @override
+  bool get wantKeepAlive => true;
 
   @override
   void dispose() {
     _nameController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    final l10n = AppLocalizations.of(context);
+    final s = ref.watch(individualEnrollProvider);
+    final notifier = ref.read(individualEnrollProvider.notifier);
+
+    // Keep text controller in sync
+    if (_nameController.text != s.identityName) {
+      _nameController.text = s.identityName;
+    }
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Eye image pickers
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: _EyeImagePicker(
+                  label: l10n.leftEye,
+                  imageBytes: s.leftImageBytes,
+                  imageName: s.leftImageName,
+                  isNA: s.leftIsNA,
+                  onPick: (bytes, name) => notifier.setLeftImage(bytes, name),
+                  onToggleNA: notifier.toggleLeftNA,
+                ),
+              ),
+              const SizedBox(width: 20),
+              Expanded(
+                child: _EyeImagePicker(
+                  label: l10n.rightEye,
+                  imageBytes: s.rightImageBytes,
+                  imageName: s.rightImageName,
+                  isNA: s.rightIsNA,
+                  onPick: (bytes, name) => notifier.setRightImage(bytes, name),
+                  onToggleNA: notifier.toggleRightNA,
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 24),
+
+          // Identity name
+          SizedBox(
+            width: 400,
+            child: TextField(
+              controller: _nameController,
+              decoration: InputDecoration(
+                hintText: l10n.identityName,
+                prefixIcon: const Icon(Icons.badge_outlined, size: 18),
+              ),
+              style: const TextStyle(fontSize: 13),
+              onChanged: notifier.setIdentityName,
+            ),
+          ),
+
+          const SizedBox(height: 16),
+
+          // Enroll button
+          ElevatedButton.icon(
+            onPressed: s.canEnroll ? () => notifier.enroll() : null,
+            icon: s.enrolling
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.how_to_reg, size: 18),
+            label: Text(l10n.enroll),
+          ),
+
+          const SizedBox(height: 16),
+
+          // Results / errors
+          for (final result in s.results) ...[
+            _IndividualResultMessage(result: result),
+            const SizedBox(height: 8),
+          ],
+          if (s.error != null)
+            _ErrorBanner(
+              message: s.error!.contains('segmentation') ||
+                      s.error!.contains('Segmentation') ||
+                      s.error!.contains('no template')
+                  ? l10n.segmentationFailed
+                  : l10n.errorPrefix(s.error!),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _EyeImagePicker extends ConsumerWidget {
+  final String label;
+  final dynamic imageBytes; // Uint8List?
+  final String? imageName;
+  final bool isNA;
+  final void Function(dynamic bytes, String name) onPick;
+  final void Function(bool) onToggleNA;
+
+  const _EyeImagePicker({
+    required this.label,
+    required this.imageBytes,
+    required this.imageName,
+    required this.isNA,
+    required this.onPick,
+    required this.onToggleNA,
+  });
+
+  Future<void> _pickImage(WidgetRef ref) async {
+    final initialDir = ref.read(_lastPickerDirectoryProvider);
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.image,
+      withData: true,
+      initialDirectory: initialDir,
+    );
+    if (result != null && result.files.single.bytes != null) {
+      final picked = result.files.single;
+      // Remember the parent directory for next time
+      if (picked.path != null) {
+        final dir = picked.path!.substring(0, picked.path!.lastIndexOf('/'));
+        ref.read(_lastPickerDirectoryProvider.notifier).state = dir;
+      }
+      onPick(picked.bytes!, picked.name);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
+    final cs = Theme.of(context).colorScheme;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: cs.onSurface,
+          ),
+        ),
+        const SizedBox(height: 8),
+
+        // Image area
+        Container(
+          height: 200,
+          width: double.infinity,
+          decoration: BoxDecoration(
+            color: isNA
+                ? cs.surfaceContainerHighest.withValues(alpha: 0.5)
+                : cs.surfaceContainer,
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(color: cs.outlineVariant),
+          ),
+          child: isNA
+              ? Center(
+                  child: Text(
+                    l10n.notApplicable,
+                    style: TextStyle(
+                      color: cs.onSurfaceVariant,
+                      fontSize: 16,
+                    ),
+                  ),
+                )
+              : imageBytes != null
+                  ? ClipRRect(
+                      borderRadius: BorderRadius.circular(5),
+                      child: Image.memory(
+                        imageBytes,
+                        fit: BoxFit.contain,
+                        gaplessPlayback: true,
+                      ),
+                    )
+                  : Center(
+                      child: Icon(
+                        Icons.visibility_outlined,
+                        size: 48,
+                        color: cs.onSurfaceVariant.withValues(alpha: 0.4),
+                      ),
+                    ),
+        ),
+        const SizedBox(height: 8),
+
+        if (imageName != null && !isNA)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: Text(
+              imageName!,
+              style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+
+        // Controls
+        Row(
+          children: [
+            ElevatedButton.icon(
+              onPressed: isNA ? null : () => _pickImage(ref),
+              icon: const Icon(Icons.folder_open, size: 16),
+              label: Text(l10n.loadFromDisk),
+            ),
+            const SizedBox(width: 12),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox(
+                  height: 20,
+                  width: 20,
+                  child: Checkbox(
+                    value: isNA,
+                    onChanged: (v) => onToggleNA(v ?? false),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  l10n.notApplicable,
+                  style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _IndividualResultMessage extends StatelessWidget {
+  final EnrollResponse result;
+
+  const _IndividualResultMessage({required this.result});
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final semantic = Theme.of(context).extension<EyedSemanticColors>()!;
+    final cs = Theme.of(context).colorScheme;
+
+    if (result.error != null) {
+      final msg = result.error!.contains('segmentation') ||
+              result.error!.contains('Segmentation') ||
+              result.error!.contains('no template')
+          ? l10n.segmentationFailed
+          : l10n.errorPrefix(result.error!);
+      return _StatusBanner(color: cs.error, text: msg);
+    }
+
+    if (result.isDuplicate) {
+      final name =
+          result.duplicateIdentityName ?? result.duplicateIdentityId ?? '?';
+      return _StatusBanner(
+        color: semantic.warning,
+        text: l10n.duplicateUserDetected(name),
+      );
+    }
+
+    return _StatusBanner(
+      color: semantic.success,
+      text: l10n.enrollSuccess(1),
+    );
+  }
+}
+
+class _StatusBanner extends StatelessWidget {
+  final Color color;
+  final String text;
+
+  const _StatusBanner({required this.color, required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: color),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(color: color, fontSize: 13),
+      ),
+    );
+  }
+}
+
+class _ErrorBanner extends StatelessWidget {
+  final String message;
+
+  const _ErrorBanner({required this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return _StatusBanner(color: cs.error, text: message);
+  }
+}
+
+// =============================================================================
+// Tab 2: Bulk Enroll
+// =============================================================================
+
+class _BulkEnrollTab extends ConsumerStatefulWidget {
+  const _BulkEnrollTab();
+
+  @override
+  ConsumerState<_BulkEnrollTab> createState() => _BulkEnrollTabState();
+}
+
+class _BulkEnrollTabState extends ConsumerState<_BulkEnrollTab>
+    with AutomaticKeepAliveClientMixin {
+  final _bulkSubjectController = TextEditingController();
+
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  void dispose() {
     _bulkSubjectController.dispose();
     super.dispose();
   }
@@ -51,382 +468,405 @@ class _EnrollmentScreenState extends ConsumerState<EnrollmentScreen> {
         );
   }
 
-  final _bulkSubjectController = TextEditingController();
-
-  Future<void> _enroll() async {
-    final browser = ref.read(enrollmentBrowserProvider);
-    final image = browser.selectedImage;
-    if (image == null || _nameController.text.isEmpty) return;
-
-    setState(() {
-      _enrolling = true;
-      _enrollResult = null;
-      _enrollError = null;
-    });
-
-    try {
-      final client = ref.read(gatewayClientProvider);
-      final b64 = await client.fetchDatasetImageAsBase64(
-        browser.selectedDataset,
-        image.path,
-      );
-
-      final result = await client.enroll(
-        jpegB64: b64,
-        eyeSide: _eyeSide,
-        identityId: const Uuid().v4(),
-        identityName: _nameController.text,
-      );
-
-      setState(() {
-        _enrollResult = result;
-        _enrolling = false;
-      });
-
-      // Refresh gallery
-      ref.read(galleryProvider.notifier).refresh();
-    } catch (e) {
-      setState(() {
-        _enrollError = e.toString();
-        _enrolling = false;
-      });
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     final l10n = AppLocalizations.of(context);
     final cs = Theme.of(context).colorScheme;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          l10n.enrollment,
-          style: TextStyle(
-            fontSize: 24,
-            fontWeight: FontWeight.w600,
-            color: cs.onSurface,
-          ),
-        ),
-        const SizedBox(height: 20),
 
-        // Main 2-column layout
-        Expanded(
-          flex: 3,
-          child: Consumer(
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Section A: Local directory bulk
+          _LocalBulkSection(),
+
+          const SizedBox(height: 24),
+          Divider(color: cs.outlineVariant),
+          const SizedBox(height: 16),
+
+          // Section B: Server-side bulk (existing)
+          Text(
+            l10n.serverBulkEnroll,
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: cs.onSurface,
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          Consumer(
             builder: (context, ref, _) {
-              final l10n = AppLocalizations.of(context);
-              final cs = Theme.of(context).colorScheme;
               final browser = ref.watch(enrollmentBrowserProvider);
-              final client = ref.read(gatewayClientProvider);
               return Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Left: dataset browser
                   SizedBox(
                     width: 280,
-                    child: DatasetBrowser(
-                        provider: enrollmentBrowserProvider),
+                    child:
+                        DatasetBrowser(provider: enrollmentBrowserProvider),
                   ),
-
-                  // Right: preview + form
+                  const SizedBox(width: 20),
                   Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.only(left: 20),
-                      child: SingleChildScrollView(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // Image preview
-                            if (browser.selectedImage != null) ...[
-                              Container(
-                                constraints:
-                                    const BoxConstraints(maxWidth: 320),
-                                decoration: BoxDecoration(
-                                  color: Colors.black,
-                                  borderRadius: BorderRadius.circular(6),
-                                  border:
-                                      Border.all(color: cs.outlineVariant),
-                                ),
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(5),
-                                  child: Image.network(
-                                    client.getDatasetImageUrl(
-                                      browser.selectedDataset,
-                                      browser.selectedImage!.path,
-                                    ),
-                                    fit: BoxFit.contain,
-                                    gaplessPlayback: true,
-                                    errorBuilder: (_, __, ___) =>
-                                        SizedBox(
-                                      height: 200,
-                                      child: Center(
-                                        child: Icon(Icons.broken_image,
-                                            color: cs.onSurfaceVariant),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                '${browser.selectedImage!.filename} | ${browser.selectedImage!.eyeSide} | Subject: ${browser.selectedImage!.subjectId}',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: cs.onSurfaceVariant,
-                                ),
-                              ),
-                              const SizedBox(height: 16),
-                            ] else
-                              Container(
-                                height: 200,
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(6),
-                                  border:
-                                      Border.all(color: cs.outlineVariant),
-                                ),
-                                child: Center(
-                                  child: Text(
-                                    l10n.selectImageFromBrowser,
-                                    style: TextStyle(
-                                      color: cs.onSurfaceVariant,
-                                      fontSize: 14,
-                                    ),
-                                  ),
-                                ),
-                              ),
-
-                            const SizedBox(height: 16),
-
-                            // Enrollment form
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: SizedBox(
-                                    height: 36,
-                                    child: TextField(
-                                      controller: _nameController,
-                                      decoration: InputDecoration(
-                                        hintText: l10n.identityName,
-                                      ),
-                                      style: const TextStyle(fontSize: 13),
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                SizedBox(
-                                  height: 36,
-                                  child: DropdownButton<String>(
-                                    value: _eyeSide,
-                                    onChanged: (v) {
-                                      if (v != null) {
-                                        setState(() => _eyeSide = v);
-                                      }
-                                    },
-                                    items: [
-                                      DropdownMenuItem(
-                                          value: 'left',
-                                          child: Text(l10n.eyeSideLeft)),
-                                      DropdownMenuItem(
-                                          value: 'right',
-                                          child: Text(l10n.eyeSideRight)),
-                                    ],
-                                    underline: const SizedBox(),
-                                    style: TextStyle(
-                                        fontSize: 13,
-                                        color: cs.onSurface),
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                ElevatedButton(
-                                  onPressed:
-                                      browser.selectedImage != null &&
-                                              _nameController
-                                                  .text.isNotEmpty &&
-                                              !_enrolling
-                                          ? _enroll
-                                          : null,
-                                  child: _enrolling
-                                      ? const SizedBox(
-                                          width: 16,
-                                          height: 16,
-                                          child:
-                                              CircularProgressIndicator(
-                                                  strokeWidth: 2),
-                                        )
-                                      : Text(l10n.enroll),
-                                ),
-                                const SizedBox(width: 8),
-                                IconButton(
-                                  onPressed: () => ref
-                                      .read(enrollmentBrowserProvider
-                                          .notifier)
-                                      .refresh(),
-                                  icon: const Icon(Icons.refresh, size: 18),
-                                  tooltip: l10n.refresh,
-                                  visualDensity: VisualDensity.compact,
-                                ),
-                              ],
-                            ),
-
-                            const SizedBox(height: 12),
-
-                            // Result message
-                            if (_enrollResult != null)
-                              _ResultMessage(result: _enrollResult!),
-                            if (_enrollError != null)
-                              Container(
-                                padding: const EdgeInsets.all(10),
-                                decoration: BoxDecoration(
-                                  color: cs.error
-                                      .withValues(alpha: 0.1),
-                                  borderRadius: BorderRadius.circular(6),
-                                  border: Border.all(
-                                      color: cs.error),
-                                ),
-                                child: Text(
-                                  _enrollError!,
-                                  style: TextStyle(
-                                      color: cs.error,
-                                      fontSize: 13),
-                                ),
-                              ),
-
-                            const SizedBox(height: 16),
-
-                            // Bulk enroll panel
-                            _BulkEnrollPanel(
-                              dataset: browser.selectedDataset,
-                              subjectController: _bulkSubjectController,
-                              onStart: browser.selectedDataset.isNotEmpty
-                                  ? () => _startBulkEnroll(
-                                      browser.selectedDataset)
-                                  : null,
-                            ),
-                          ],
-                        ),
-                      ),
+                    child: _BulkEnrollPanel(
+                      dataset: browser.selectedDataset,
+                      subjectController: _bulkSubjectController,
+                      onStart: browser.selectedDataset.isNotEmpty
+                          ? () => _startBulkEnroll(browser.selectedDataset)
+                          : null,
                     ),
                   ),
                 ],
               );
             },
           ),
-        ),
+        ],
+      ),
+    );
+  }
+}
 
-        const SizedBox(height: 16),
-        Divider(color: Theme.of(context).colorScheme.outlineVariant),
-        const SizedBox(height: 8),
+class _LocalBulkSection extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
+    final cs = Theme.of(context).colorScheme;
+    final semantic = Theme.of(context).extension<EyedSemanticColors>()!;
+    final s = ref.watch(localBulkEnrollProvider);
+    final notifier = ref.read(localBulkEnrollProvider.notifier);
 
-        // Gallery table
-        Row(
-          children: [
-            Text(
-              l10n.gallery,
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-                color: cs.onSurface,
-              ),
-            ),
-            const SizedBox(width: 8),
-            IconButton(
-              icon: const Icon(Icons.refresh, size: 20),
-              tooltip: l10n.refresh,
-              onPressed: () => ref.read(galleryProvider.notifier).refresh(),
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(),
-              visualDensity: VisualDensity.compact,
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-
-        Expanded(
-          flex: 2,
-          child: Consumer(
-            builder: (context, ref, _) {
-              final l10n = AppLocalizations.of(context);
-              final cs = Theme.of(context).colorScheme;
-              final galleryAsync = ref.watch(galleryProvider);
-              return Container(
-                decoration: BoxDecoration(
-                  color: cs.surfaceContainer,
-                  borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: cs.outlineVariant),
-                ),
-                child: galleryAsync.when(
-                  loading: () =>
-                      const Center(child: CircularProgressIndicator()),
-                  error: (e, _) => Center(
-                    child: Text('Error: $e',
-                        style: TextStyle(color: cs.error)),
-                  ),
-                  data: (gallery) => gallery.isEmpty
-                      ? Center(
-                          child: Text(
-                            l10n.noIdentitiesEnrolled,
-                            style: TextStyle(
-                              color: cs.onSurfaceVariant,
-                              fontSize: 14,
-                            ),
-                          ),
-                        )
-                      : ListView.separated(
-                          padding: const EdgeInsets.all(8),
-                          itemCount: gallery.length,
-                          separatorBuilder: (_, __) => Divider(
-                              height: 1, color: cs.outlineVariant),
-                          itemBuilder: (context, index) {
-                            final identity = gallery[index];
-                            return _GalleryRow(
-                              identity: identity,
-                              client: ref.read(gatewayClientProvider),
-                              onDelete: () => ref
-                                  .read(galleryProvider.notifier)
-                                  .deleteIdentity(identity.identityId),
-                            );
-                          },
-                        ),
-                ),
-              );
-            },
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Header
+        Text(
+          l10n.localBulkEnroll,
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            color: cs.onSurface,
           ),
         ),
+        const SizedBox(height: 12),
+
+        // Select directory
+        Row(
+          children: [
+            ElevatedButton.icon(
+              onPressed: s.enrolling
+                  ? null
+                  : () async {
+                      final initialDir = ref.read(_lastPickerDirectoryProvider);
+                      final path =
+                          await FilePicker.platform.getDirectoryPath(
+                        initialDirectory: initialDir,
+                      );
+                      if (path != null) {
+                        ref.read(_lastPickerDirectoryProvider.notifier).state = path;
+                        notifier.scanDirectory(path);
+                      }
+                    },
+              icon: const Icon(Icons.folder_open, size: 16),
+              label: Text(l10n.selectLocalDirectory),
+            ),
+            if (s.directoryPath != null) ...[
+              const SizedBox(width: 12),
+              Flexible(
+                child: Text(
+                  s.directoryPath!,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontFamily: 'monospace',
+                    color: cs.onSurfaceVariant,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ],
+        ),
+
+        if (s.scanning) ...[
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              const SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+              const SizedBox(width: 8),
+              Text(l10n.scanningDirectory,
+                  style:
+                      TextStyle(fontSize: 13, color: cs.onSurfaceVariant)),
+            ],
+          ),
+        ],
+
+        // Subject preview
+        if (s.subjects.isNotEmpty && !s.scanning) ...[
+          const SizedBox(height: 12),
+          Text(
+            l10n.subjectsFound(s.subjects.length),
+            style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant),
+          ),
+          const SizedBox(height: 8),
+          Container(
+            constraints: const BoxConstraints(maxHeight: 160),
+            decoration: BoxDecoration(
+              color: cs.surfaceContainerLowest,
+              borderRadius: BorderRadius.circular(4),
+              border: Border.all(color: cs.outlineVariant),
+            ),
+            child: ListView.builder(
+              shrinkWrap: true,
+              padding: const EdgeInsets.all(6),
+              itemCount: s.subjects.length,
+              itemBuilder: (_, i) {
+                final sub = s.subjects[i];
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 1),
+                  child: Row(
+                    children: [
+                      SizedBox(
+                        width: 140,
+                        child: Text(
+                          sub.name,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontFamily: 'monospace',
+                            color: cs.onSurface,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      if (sub.leftImagePath != null)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 4, vertical: 1),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(3),
+                            color: cs.primary.withValues(alpha: 0.2),
+                          ),
+                          child: Text(l10n.eyeSideShortLeft,
+                              style: TextStyle(
+                                  fontSize: 10, color: cs.primary)),
+                        ),
+                      const SizedBox(width: 4),
+                      if (sub.rightImagePath != null)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 4, vertical: 1),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(3),
+                            color:
+                                semantic.success.withValues(alpha: 0.2),
+                          ),
+                          child: Text(l10n.eyeSideShortRight,
+                              style: TextStyle(
+                                  fontSize: 10,
+                                  color: semantic.success)),
+                        ),
+                      if (!sub.hasImages)
+                        Text(
+                          l10n.noImages,
+                          style:
+                              TextStyle(fontSize: 10, color: cs.error),
+                        ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
+
+          const SizedBox(height: 12),
+
+          // Start button
+          if (!s.enrolling && !s.done)
+            ElevatedButton.icon(
+              onPressed:
+                  s.subjects.where((s) => s.hasImages).isEmpty
+                      ? null
+                      : () => notifier.startEnroll(),
+              icon: const Icon(Icons.play_arrow, size: 16),
+              label: Text(l10n.startEnroll),
+            ),
+        ],
+
+        // Enrolling progress
+        if (s.enrolling) ...[
+          const SizedBox(height: 12),
+          LinearProgressIndicator(
+            value: s.subjects.isNotEmpty
+                ? s.currentIndex / s.subjects.length
+                : null,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            l10n.enrollingSubject(
+              s.currentIndex + 1,
+              s.subjects.length,
+              s.currentIndex < s.subjects.length
+                  ? s.subjects[s.currentIndex].name
+                  : '',
+            ),
+            style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant),
+          ),
+          const SizedBox(height: 8),
+          _BulkCounters(
+            enrolled: s.enrolled,
+            duplicates: s.duplicates,
+            errors: s.errors,
+          ),
+          const SizedBox(height: 8),
+          TextButton(
+            onPressed: () => notifier.cancel(),
+            child: Text(l10n.cancel),
+          ),
+        ],
+
+        // Done summary
+        if (s.done) ...[
+          const SizedBox(height: 12),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: cs.primary.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: cs.primary),
+            ),
+            child: Text(
+              l10n.localBulkComplete(
+                  s.enrolled, s.duplicates, s.errors),
+              style: TextStyle(color: cs.onSurface, fontSize: 13),
+            ),
+          ),
+          const SizedBox(height: 8),
+          _BulkCounters(
+            enrolled: s.enrolled,
+            duplicates: s.duplicates,
+            errors: s.errors,
+          ),
+        ],
+
+        // Report entries (dups + errors)
+        if (s.reportEntries.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          Container(
+            constraints: const BoxConstraints(maxHeight: 150),
+            decoration: BoxDecoration(
+              color: cs.surfaceContainerLowest,
+              borderRadius: BorderRadius.circular(4),
+              border: Border.all(color: cs.outlineVariant),
+            ),
+            child: ListView.builder(
+              shrinkWrap: true,
+              padding: const EdgeInsets.all(8),
+              itemCount: s.reportEntries.length,
+              itemBuilder: (_, i) {
+                final r = s.reportEntries[i];
+                final isErr = r.status == 'error';
+                final color = isErr ? cs.error : semantic.warning;
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 1),
+                  child: Text(
+                    '${r.subjectName}/${r.eyeSide}: ${r.status}${r.detail != null ? ' (${r.detail})' : ''}',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontFamily: 'monospace',
+                      color: color,
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+
+        // Reset after done
+        if (s.done) ...[
+          const SizedBox(height: 8),
+          TextButton(
+            onPressed: () => notifier.reset(),
+            child: Text(l10n.close),
+          ),
+        ],
+
+        // Error
+        if (s.error != null && !s.scanning) ...[
+          const SizedBox(height: 8),
+          _ErrorBanner(message: s.error!),
+        ],
+
+        // No subjects found
+        if (!s.scanning &&
+            s.directoryPath != null &&
+            s.subjects.isEmpty &&
+            s.error == null &&
+            !s.enrolling)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Text(
+              l10n.noSubjectsFound,
+              style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant),
+            ),
+          ),
       ],
     );
   }
 }
 
-class _ResultMessage extends StatelessWidget {
-  final EnrollResponse result;
+class _BulkCounters extends StatelessWidget {
+  final int enrolled;
+  final int duplicates;
+  final int errors;
 
-  const _ResultMessage({required this.result});
+  const _BulkCounters({
+    required this.enrolled,
+    required this.duplicates,
+    required this.errors,
+  });
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final cs = Theme.of(context).colorScheme;
     final semantic = Theme.of(context).extension<EyedSemanticColors>()!;
-    final isDup = result.isDuplicate;
-    final color = isDup ? semantic.warning : semantic.success;
-    final text = isDup
-        ? l10n.duplicateDetected(result.duplicateIdentityId ?? "?")
-        : l10n.enrolled(result.templateId);
 
-    return Container(
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: color),
-      ),
-      child: Text(
-        text,
-        style: TextStyle(color: color, fontSize: 13),
-      ),
+    return Wrap(
+      spacing: 12,
+      runSpacing: 6,
+      children: [
+        _CounterChip(
+          label: '$enrolled ${l10n.bulkEnrolled}',
+          color: semantic.success,
+          bg: semantic.success.withValues(alpha: 0.1),
+        ),
+        if (duplicates > 0)
+          _CounterChip(
+            label: '$duplicates ${l10n.bulkDuplicate}',
+            color: semantic.warning,
+            bg: semantic.warning.withValues(alpha: 0.1),
+          ),
+        if (errors > 0)
+          _CounterChip(
+            label: '$errors ${l10n.errors.toLowerCase()}',
+            color: cs.error,
+            bg: cs.error.withValues(alpha: 0.1),
+          ),
+      ],
     );
   }
 }
+
+// =============================================================================
+// Server-side Bulk Enroll Panel (existing logic preserved)
+// =============================================================================
 
 class _BulkEnrollPanel extends ConsumerWidget {
   final String dataset;
@@ -457,7 +897,8 @@ class _BulkEnrollPanel extends ConsumerWidget {
         children: [
           // Header bar
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            padding:
+                const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(
               color: cs.surfaceContainer,
               borderRadius:
@@ -465,7 +906,8 @@ class _BulkEnrollPanel extends ConsumerWidget {
             ),
             child: Row(
               children: [
-                Icon(Icons.upload_file, size: 16, color: cs.onSurfaceVariant),
+                Icon(Icons.upload_file,
+                    size: 16, color: cs.onSurfaceVariant),
                 const SizedBox(width: 8),
                 Text(
                   l10n.bulkEnroll,
@@ -479,7 +921,8 @@ class _BulkEnrollPanel extends ConsumerWidget {
                   const SizedBox(width: 8),
                   Text(
                     s.dataset!,
-                    style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
+                    style: TextStyle(
+                        fontSize: 12, color: cs.onSurfaceVariant),
                   ),
                 ],
                 const Spacer(),
@@ -499,7 +942,7 @@ class _BulkEnrollPanel extends ConsumerWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // --- Idle: subject filter + start ---
+                // Idle: subject filter + start
                 if (s.idle) ...[
                   TextField(
                     controller: subjectController,
@@ -517,14 +960,13 @@ class _BulkEnrollPanel extends ConsumerWidget {
                   ),
                 ],
 
-                // --- Running / Done: live counters ---
+                // Running / Done: live counters
                 if (!s.idle) ...[
                   if (s.running) ...[
                     const LinearProgressIndicator(),
                     const SizedBox(height: 10),
                   ],
 
-                  // Counter chips
                   Wrap(
                     spacing: 12,
                     runSpacing: 6,
@@ -541,13 +983,15 @@ class _BulkEnrollPanel extends ConsumerWidget {
                       ),
                       if (s.duplicates > 0)
                         _CounterChip(
-                          label: '${s.duplicates} ${l10n.bulkDuplicate}',
+                          label:
+                              '${s.duplicates} ${l10n.bulkDuplicate}',
                           color: semantic.warning,
                           bg: semantic.warning.withValues(alpha: 0.1),
                         ),
                       if (s.errors > 0)
                         _CounterChip(
-                          label: '${s.errors} ${l10n.errors.toLowerCase()}',
+                          label:
+                              '${s.errors} ${l10n.errors.toLowerCase()}',
                           color: cs.error,
                           bg: cs.error.withValues(alpha: 0.1),
                         ),
@@ -555,7 +999,7 @@ class _BulkEnrollPanel extends ConsumerWidget {
                   ),
                 ],
 
-                // --- Summary banner ---
+                // Summary banner
                 if (s.summary != null) ...[
                   const SizedBox(height: 10),
                   Container(
@@ -572,12 +1016,13 @@ class _BulkEnrollPanel extends ConsumerWidget {
                         s.summary!.duplicates,
                         s.summary!.errors,
                       ),
-                      style: TextStyle(color: cs.onSurface, fontSize: 13),
+                      style:
+                          TextStyle(color: cs.onSurface, fontSize: 13),
                     ),
                   ),
                 ],
 
-                // --- Report: dup & error entries only ---
+                // Report: dup & error entries
                 if (s.reportEntries.isNotEmpty) ...[
                   const SizedBox(height: 8),
                   Container(
@@ -600,7 +1045,8 @@ class _BulkEnrollPanel extends ConsumerWidget {
                             ? r.error!
                             : '${l10n.bulkDuplicate} (${r.duplicateIdentityId ?? "?"})';
                         return Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 1),
+                          padding: const EdgeInsets.symmetric(
+                              vertical: 1),
                           child: Text(
                             '${r.subjectId}/${r.eyeSide}: $status',
                             style: TextStyle(
@@ -615,7 +1061,7 @@ class _BulkEnrollPanel extends ConsumerWidget {
                   ),
                 ],
 
-                // --- Connection error ---
+                // Connection error
                 if (s.connectionError != null) ...[
                   const SizedBox(height: 8),
                   Text(
@@ -624,21 +1070,23 @@ class _BulkEnrollPanel extends ConsumerWidget {
                   ),
                 ],
 
-                // --- Cancel / Close ---
+                // Cancel / Close
                 if (s.running || s.done) ...[
                   const SizedBox(height: 8),
                   Row(
                     children: [
                       if (s.running)
                         TextButton(
-                          onPressed: () =>
-                              ref.read(bulkEnrollProvider.notifier).cancel(),
+                          onPressed: () => ref
+                              .read(bulkEnrollProvider.notifier)
+                              .cancel(),
                           child: Text(l10n.cancel),
                         ),
                       if (s.done)
                         TextButton(
-                          onPressed: () =>
-                              ref.read(bulkEnrollProvider.notifier).dismiss(),
+                          onPressed: () => ref
+                              .read(bulkEnrollProvider.notifier)
+                              .dismiss(),
                           child: Text(l10n.close),
                         ),
                     ],
@@ -652,6 +1100,110 @@ class _BulkEnrollPanel extends ConsumerWidget {
     );
   }
 }
+
+// =============================================================================
+// Tab 3: Gallery
+// =============================================================================
+
+class _GalleryTab extends ConsumerWidget {
+  const _GalleryTab();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
+    final cs = Theme.of(context).colorScheme;
+    final galleryAsync = ref.watch(galleryProvider);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text(
+              l10n.gallery,
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+                color: cs.onSurface,
+              ),
+            ),
+            const SizedBox(width: 8),
+            IconButton(
+              icon: const Icon(Icons.refresh, size: 20),
+              tooltip: l10n.refresh,
+              onPressed: () =>
+                  ref.read(galleryProvider.notifier).refresh(),
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
+              visualDensity: VisualDensity.compact,
+            ),
+            const SizedBox(width: 12),
+            galleryAsync.whenOrNull(
+                  data: (list) => Text(
+                    '${list.length}',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: cs.onSurfaceVariant,
+                    ),
+                  ),
+                ) ??
+                const SizedBox.shrink(),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Expanded(
+          child: Container(
+            decoration: BoxDecoration(
+              color: cs.surfaceContainer,
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: cs.outlineVariant),
+            ),
+            child: galleryAsync.when(
+              loading: () =>
+                  const Center(child: CircularProgressIndicator()),
+              error: (e, _) => Center(
+                child: Text('Error: $e',
+                    style: TextStyle(color: cs.error)),
+              ),
+              data: (gallery) => gallery.isEmpty
+                  ? Center(
+                      child: Text(
+                        l10n.noIdentitiesEnrolled,
+                        style: TextStyle(
+                          color: cs.onSurfaceVariant,
+                          fontSize: 14,
+                        ),
+                      ),
+                    )
+                  : ListView.separated(
+                      padding: const EdgeInsets.all(8),
+                      itemCount: gallery.length,
+                      separatorBuilder: (_, __) => Divider(
+                          height: 1, color: cs.outlineVariant),
+                      itemBuilder: (context, index) {
+                        final identity = gallery[index];
+                        return _GalleryRow(
+                          identity: identity,
+                          client:
+                              ref.read(gatewayClientProvider),
+                          onDelete: () => ref
+                              .read(galleryProvider.notifier)
+                              .deleteIdentity(
+                                  identity.identityId),
+                        );
+                      },
+                    ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// =============================================================================
+// Shared widgets
+// =============================================================================
 
 class _CounterChip extends StatelessWidget {
   final String label;
@@ -717,14 +1269,16 @@ class _GalleryRow extends StatelessWidget {
       borderRadius: BorderRadius.circular(4),
       hoverColor: cs.surfaceContainerHighest,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        padding:
+            const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
         child: Row(
           children: [
             Expanded(
               flex: 2,
               child: Text(
                 identity.name,
-                style: TextStyle(fontSize: 13, color: cs.onSurface),
+                style:
+                    TextStyle(fontSize: 13, color: cs.onSurface),
               ),
             ),
             Expanded(
@@ -745,13 +1299,14 @@ class _GalleryRow extends StatelessWidget {
                 spacing: 4,
                 children: identity.templates.map((t) {
                   return Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(3),
                       color: t.eyeSide == 'left'
                           ? cs.primary.withValues(alpha: 0.2)
-                          : semantic.success.withValues(alpha: 0.2),
+                          : semantic.success
+                              .withValues(alpha: 0.2),
                     ),
                     child: Text(
                       t.eyeSide,
@@ -768,7 +1323,8 @@ class _GalleryRow extends StatelessWidget {
             ),
             OutlinedButton(
               onPressed: onDelete,
-              child: Text(l10n.delete, style: const TextStyle(fontSize: 12)),
+              child: Text(l10n.delete,
+                  style: const TextStyle(fontSize: 12)),
             ),
           ],
         ),
@@ -789,7 +1345,8 @@ class _IdentityDetailDialog extends StatefulWidget {
   });
 
   @override
-  State<_IdentityDetailDialog> createState() => _IdentityDetailDialogState();
+  State<_IdentityDetailDialog> createState() =>
+      _IdentityDetailDialogState();
 }
 
 class _IdentityDetailDialogState extends State<_IdentityDetailDialog> {
@@ -804,7 +1361,8 @@ class _IdentityDetailDialogState extends State<_IdentityDetailDialog> {
       _detailError = null;
     });
     try {
-      final detail = await widget.client.getTemplateDetail(templateId);
+      final detail =
+          await widget.client.getTemplateDetail(templateId);
       setState(() {
         _selectedDetail = detail;
         _loadingDetail = false;
@@ -821,7 +1379,8 @@ class _IdentityDetailDialogState extends State<_IdentityDetailDialog> {
   void initState() {
     super.initState();
     if (widget.identity.templates.length == 1) {
-      _loadTemplateDetail(widget.identity.templates.first.templateId);
+      _loadTemplateDetail(
+          widget.identity.templates.first.templateId);
     }
   }
 
@@ -829,7 +1388,8 @@ class _IdentityDetailDialogState extends State<_IdentityDetailDialog> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final cs = Theme.of(context).colorScheme;
-    final semantic = Theme.of(context).extension<EyedSemanticColors>()!;
+    final semantic =
+        Theme.of(context).extension<EyedSemanticColors>()!;
 
     return AlertDialog(
       title: Text(
@@ -844,7 +1404,6 @@ class _IdentityDetailDialogState extends State<_IdentityDetailDialog> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Identity name
               _DetailRow(
                 label: l10n.identityName,
                 value: widget.identity.name.isNotEmpty
@@ -852,16 +1411,12 @@ class _IdentityDetailDialogState extends State<_IdentityDetailDialog> {
                     : '\u2014',
               ),
               const SizedBox(height: 8),
-
-              // Identity ID
               _DetailRow(
                 label: l10n.identityId,
                 value: widget.identity.identityId,
                 mono: true,
               ),
               const SizedBox(height: 16),
-
-              // Templates header
               Text(
                 '${l10n.templates} (${widget.identity.templates.length})',
                 style: TextStyle(
@@ -871,8 +1426,6 @@ class _IdentityDetailDialogState extends State<_IdentityDetailDialog> {
                 ),
               ),
               const SizedBox(height: 8),
-
-              // Templates list
               if (widget.identity.templates.isEmpty)
                 Text(
                   l10n.noTemplates,
@@ -890,7 +1443,6 @@ class _IdentityDetailDialogState extends State<_IdentityDetailDialog> {
                   ),
                   child: Column(
                     children: [
-                      // Table header
                       Padding(
                         padding: const EdgeInsets.symmetric(
                             horizontal: 12, vertical: 8),
@@ -921,19 +1473,24 @@ class _IdentityDetailDialogState extends State<_IdentityDetailDialog> {
                           ],
                         ),
                       ),
-                      Divider(height: 1, color: cs.outlineVariant),
-                      // Template rows
+                      Divider(
+                          height: 1, color: cs.outlineVariant),
                       ...widget.identity.templates.map((t) {
                         final isSelected =
-                            _selectedDetail?.templateId == t.templateId;
+                            _selectedDetail?.templateId ==
+                                t.templateId;
                         return InkWell(
-                          onTap: () => _loadTemplateDetail(t.templateId),
+                          onTap: () => _loadTemplateDetail(
+                              t.templateId),
                           child: Container(
                             color: isSelected
-                                ? cs.primary.withValues(alpha: 0.1)
+                                ? cs.primary
+                                    .withValues(alpha: 0.1)
                                 : null,
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 12, vertical: 6),
+                            padding:
+                                const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 6),
                             child: Row(
                               children: [
                                 Expanded(
@@ -947,21 +1504,29 @@ class _IdentityDetailDialogState extends State<_IdentityDetailDialog> {
                                           ? cs.primary
                                           : cs.onSurface,
                                     ),
-                                    overflow: TextOverflow.ellipsis,
+                                    overflow:
+                                        TextOverflow.ellipsis,
                                   ),
                                 ),
                                 Expanded(
                                   flex: 1,
                                   child: Container(
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 6, vertical: 2),
+                                    padding: const EdgeInsets
+                                        .symmetric(
+                                        horizontal: 6,
+                                        vertical: 2),
                                     decoration: BoxDecoration(
-                                      borderRadius: BorderRadius.circular(3),
-                                      color: t.eyeSide == 'left'
+                                      borderRadius:
+                                          BorderRadius.circular(
+                                              3),
+                                      color: t.eyeSide ==
+                                              'left'
                                           ? cs.primary
-                                              .withValues(alpha: 0.2)
+                                              .withValues(
+                                                  alpha: 0.2)
                                           : semantic.success
-                                              .withValues(alpha: 0.2),
+                                              .withValues(
+                                                  alpha: 0.2),
                                     ),
                                     child: Text(
                                       t.eyeSide == 'left'
@@ -969,9 +1534,11 @@ class _IdentityDetailDialogState extends State<_IdentityDetailDialog> {
                                           : l10n.eyeSideRight,
                                       style: TextStyle(
                                         fontSize: 11,
-                                        color: t.eyeSide == 'left'
-                                            ? cs.primary
-                                            : semantic.success,
+                                        color:
+                                            t.eyeSide == 'left'
+                                                ? cs.primary
+                                                : semantic
+                                                    .success,
                                       ),
                                     ),
                                   ),
@@ -985,14 +1552,15 @@ class _IdentityDetailDialogState extends State<_IdentityDetailDialog> {
                   ),
                 ),
 
-              // Template detail section
+              // Template detail
               if (_loadingDetail) ...[
                 const SizedBox(height: 16),
                 const Center(
                   child: SizedBox(
                     width: 20,
                     height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2),
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2),
                   ),
                 ),
               ],
@@ -1000,14 +1568,17 @@ class _IdentityDetailDialogState extends State<_IdentityDetailDialog> {
                 const SizedBox(height: 16),
                 Text(
                   _detailError!,
-                  style: TextStyle(color: cs.error, fontSize: 12),
+                  style: TextStyle(
+                      color: cs.error, fontSize: 12),
                 ),
               ],
-              if (_selectedDetail != null && !_loadingDetail) ...[
+              if (_selectedDetail != null &&
+                  !_loadingDetail) ...[
                 const SizedBox(height: 16),
                 Divider(color: cs.outlineVariant),
                 const SizedBox(height: 12),
-                _TemplateDetailView(detail: _selectedDetail!),
+                _TemplateDetailView(
+                    detail: _selectedDetail!),
               ],
             ],
           ),
@@ -1042,19 +1613,20 @@ class _TemplateDetailView extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Metadata row
         Row(
           children: [
             Expanded(
               child: _DetailRow(
                 label: l10n.qualityMetrics,
-                value: detail.qualityScore.toStringAsFixed(3),
+                value:
+                    detail.qualityScore.toStringAsFixed(3),
               ),
             ),
             Expanded(
               child: _DetailRow(
                 label: l10n.codeSize,
-                value: '${detail.width} x ${detail.height}',
+                value:
+                    '${detail.width} x ${detail.height}',
               ),
             ),
             Expanded(
@@ -1067,11 +1639,12 @@ class _TemplateDetailView extends StatelessWidget {
         ),
         if (detail.deviceId.isNotEmpty) ...[
           const SizedBox(height: 4),
-          _DetailRow(label: l10n.deviceId, value: detail.deviceId, mono: true),
+          _DetailRow(
+              label: l10n.deviceId,
+              value: detail.deviceId,
+              mono: true),
         ],
         const SizedBox(height: 12),
-
-        // Iris code visualization
         if (detail.irisCodeB64 != null) ...[
           Text(
             l10n.irisCode,
@@ -1084,7 +1657,8 @@ class _TemplateDetailView extends StatelessWidget {
           const SizedBox(height: 4),
           Container(
             decoration: BoxDecoration(
-              border: Border.all(color: cs.outlineVariant),
+              border:
+                  Border.all(color: cs.outlineVariant),
               borderRadius: BorderRadius.circular(4),
             ),
             child: ClipRRect(
@@ -1098,8 +1672,6 @@ class _TemplateDetailView extends StatelessWidget {
           ),
           const SizedBox(height: 12),
         ],
-
-        // Mask code visualization
         if (detail.maskCodeB64 != null) ...[
           Text(
             l10n.maskCode,
@@ -1112,7 +1684,8 @@ class _TemplateDetailView extends StatelessWidget {
           const SizedBox(height: 4),
           Container(
             decoration: BoxDecoration(
-              border: Border.all(color: cs.outlineVariant),
+              border:
+                  Border.all(color: cs.outlineVariant),
               borderRadius: BorderRadius.circular(4),
             ),
             child: ClipRRect(

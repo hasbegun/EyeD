@@ -23,6 +23,7 @@ EnrollResponse _$EnrollResponseFromJson(Map<String, dynamic> json) =>
       templateId: json['template_id'] as String,
       isDuplicate: json['is_duplicate'] as bool,
       duplicateIdentityId: json['duplicate_identity_id'] as String?,
+      duplicateIdentityName: json['duplicate_identity_name'] as String?,
       error: json['error'] as String?,
     );
 
@@ -32,6 +33,7 @@ Map<String, dynamic> _$EnrollResponseToJson(EnrollResponse instance) =>
       'template_id': instance.templateId,
       'is_duplicate': instance.isDuplicate,
       'duplicate_identity_id': instance.duplicateIdentityId,
+      'duplicate_identity_name': instance.duplicateIdentityName,
       'error': instance.error,
     };
 

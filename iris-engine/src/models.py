@@ -65,6 +65,7 @@ class EnrollResponse(BaseModel):
     template_id: str
     is_duplicate: bool = False
     duplicate_identity_id: Optional[str] = None
+    duplicate_identity_name: Optional[str] = None
     error: Optional[str] = None
 
 

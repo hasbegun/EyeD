@@ -501,4 +501,74 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get dbSelectTablePrompt => '테이블을 선택하여 행을 탐색하세요';
+
+  @override
+  String get individualEnroll => '개별 등록';
+
+  @override
+  String get bulkEnrollTab => '일괄 등록';
+
+  @override
+  String get galleryTab => '갤러리';
+
+  @override
+  String get leftEye => '왼쪽 눈';
+
+  @override
+  String get rightEye => '오른쪽 눈';
+
+  @override
+  String get loadFromDisk => '파일 선택';
+
+  @override
+  String get notApplicable => 'N/A';
+
+  @override
+  String get atLeastOneEyeRequired => '최소 한쪽 눈 이미지가 필요합니다';
+
+  @override
+  String get segmentationFailed => '홍채를 찾을 수 없습니다. 더 나은 품질의 이미지를 선택해 주세요.';
+
+  @override
+  String duplicateUserDetected(String name) {
+    return '중복 감지: $name(으)로 이미 등록됨';
+  }
+
+  @override
+  String enrollSuccess(int count) {
+    return '등록 성공 ($count개 템플릿)';
+  }
+
+  @override
+  String get selectLocalDirectory => '디렉토리 선택';
+
+  @override
+  String get localBulkEnroll => '로컬 디렉토리';
+
+  @override
+  String get serverBulkEnroll => '서버 데이터셋';
+
+  @override
+  String get scanningDirectory => '디렉토리 스캔 중...';
+
+  @override
+  String subjectsFound(int count) {
+    return '$count명 발견';
+  }
+
+  @override
+  String enrollingSubject(int current, int total, String name) {
+    return '$total명 중 $current번째 등록 중: $name';
+  }
+
+  @override
+  String localBulkComplete(int enrolled, int duplicates, int errors) {
+    return '완료: $enrolled건 등록, $duplicates건 중복, $errors건 오류';
+  }
+
+  @override
+  String get noSubjectsFound => '디렉토리에 유효한 대상이 없습니다';
+
+  @override
+  String get startEnroll => '등록 시작';
 }

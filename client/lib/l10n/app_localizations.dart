@@ -1039,6 +1039,126 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Select a table to browse rows'**
   String get dbSelectTablePrompt;
+
+  /// No description provided for @individualEnroll.
+  ///
+  /// In en, this message translates to:
+  /// **'Individual'**
+  String get individualEnroll;
+
+  /// No description provided for @bulkEnrollTab.
+  ///
+  /// In en, this message translates to:
+  /// **'Bulk Enroll'**
+  String get bulkEnrollTab;
+
+  /// No description provided for @galleryTab.
+  ///
+  /// In en, this message translates to:
+  /// **'Gallery'**
+  String get galleryTab;
+
+  /// No description provided for @leftEye.
+  ///
+  /// In en, this message translates to:
+  /// **'Left Eye'**
+  String get leftEye;
+
+  /// No description provided for @rightEye.
+  ///
+  /// In en, this message translates to:
+  /// **'Right Eye'**
+  String get rightEye;
+
+  /// No description provided for @loadFromDisk.
+  ///
+  /// In en, this message translates to:
+  /// **'Load from disk'**
+  String get loadFromDisk;
+
+  /// No description provided for @notApplicable.
+  ///
+  /// In en, this message translates to:
+  /// **'N/A'**
+  String get notApplicable;
+
+  /// No description provided for @atLeastOneEyeRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'At least one eye image is required'**
+  String get atLeastOneEyeRequired;
+
+  /// No description provided for @segmentationFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Iris not found. Please select a better quality image.'**
+  String get segmentationFailed;
+
+  /// No description provided for @duplicateUserDetected.
+  ///
+  /// In en, this message translates to:
+  /// **'Duplicate detected: already enrolled as {name}'**
+  String duplicateUserDetected(String name);
+
+  /// No description provided for @enrollSuccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Enrolled successfully ({count} template(s))'**
+  String enrollSuccess(int count);
+
+  /// No description provided for @selectLocalDirectory.
+  ///
+  /// In en, this message translates to:
+  /// **'Select Directory'**
+  String get selectLocalDirectory;
+
+  /// No description provided for @localBulkEnroll.
+  ///
+  /// In en, this message translates to:
+  /// **'Local Directory'**
+  String get localBulkEnroll;
+
+  /// No description provided for @serverBulkEnroll.
+  ///
+  /// In en, this message translates to:
+  /// **'Server Dataset'**
+  String get serverBulkEnroll;
+
+  /// No description provided for @scanningDirectory.
+  ///
+  /// In en, this message translates to:
+  /// **'Scanning directory...'**
+  String get scanningDirectory;
+
+  /// No description provided for @subjectsFound.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} subjects found'**
+  String subjectsFound(int count);
+
+  /// No description provided for @enrollingSubject.
+  ///
+  /// In en, this message translates to:
+  /// **'Enrolling {current} of {total}: {name}'**
+  String enrollingSubject(int current, int total, String name);
+
+  /// No description provided for @localBulkComplete.
+  ///
+  /// In en, this message translates to:
+  /// **'Complete: {enrolled} enrolled, {duplicates} duplicates, {errors} errors'**
+  String localBulkComplete(int enrolled, int duplicates, int errors);
+
+  /// No description provided for @noSubjectsFound.
+  ///
+  /// In en, this message translates to:
+  /// **'No valid subjects found in directory'**
+  String get noSubjectsFound;
+
+  /// No description provided for @startEnroll.
+  ///
+  /// In en, this message translates to:
+  /// **'Start Enroll'**
+  String get startEnroll;
 }
 
 class _AppLocalizationsDelegate

@@ -503,4 +503,75 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get dbSelectTablePrompt => 'Select a table to browse rows';
+
+  @override
+  String get individualEnroll => 'Individual';
+
+  @override
+  String get bulkEnrollTab => 'Bulk Enroll';
+
+  @override
+  String get galleryTab => 'Gallery';
+
+  @override
+  String get leftEye => 'Left Eye';
+
+  @override
+  String get rightEye => 'Right Eye';
+
+  @override
+  String get loadFromDisk => 'Load from disk';
+
+  @override
+  String get notApplicable => 'N/A';
+
+  @override
+  String get atLeastOneEyeRequired => 'At least one eye image is required';
+
+  @override
+  String get segmentationFailed =>
+      'Iris not found. Please select a better quality image.';
+
+  @override
+  String duplicateUserDetected(String name) {
+    return 'Duplicate detected: already enrolled as $name';
+  }
+
+  @override
+  String enrollSuccess(int count) {
+    return 'Enrolled successfully ($count template(s))';
+  }
+
+  @override
+  String get selectLocalDirectory => 'Select Directory';
+
+  @override
+  String get localBulkEnroll => 'Local Directory';
+
+  @override
+  String get serverBulkEnroll => 'Server Dataset';
+
+  @override
+  String get scanningDirectory => 'Scanning directory...';
+
+  @override
+  String subjectsFound(int count) {
+    return '$count subjects found';
+  }
+
+  @override
+  String enrollingSubject(int current, int total, String name) {
+    return 'Enrolling $current of $total: $name';
+  }
+
+  @override
+  String localBulkComplete(int enrolled, int duplicates, int errors) {
+    return 'Complete: $enrolled enrolled, $duplicates duplicates, $errors errors';
+  }
+
+  @override
+  String get noSubjectsFound => 'No valid subjects found in directory';
+
+  @override
+  String get startEnroll => 'Start Enroll';
 }

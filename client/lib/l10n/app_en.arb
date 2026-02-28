@@ -238,5 +238,55 @@
   "dbCiphertexts": "Ciphertexts",
   "dbHexPrefix": "Hex prefix",
   "dbRelatedData": "Related data",
-  "dbSelectTablePrompt": "Select a table to browse rows"
+  "dbSelectTablePrompt": "Select a table to browse rows",
+
+  "individualEnroll": "Individual",
+  "bulkEnrollTab": "Bulk Enroll",
+  "galleryTab": "Gallery",
+  "leftEye": "Left Eye",
+  "rightEye": "Right Eye",
+  "loadFromDisk": "Load from disk",
+  "notApplicable": "N/A",
+  "atLeastOneEyeRequired": "At least one eye image is required",
+  "segmentationFailed": "Iris not found. Please select a better quality image.",
+  "duplicateUserDetected": "Duplicate detected: already enrolled as {name}",
+  "@duplicateUserDetected": {
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "enrollSuccess": "Enrolled successfully ({count} template(s))",
+  "@enrollSuccess": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "selectLocalDirectory": "Select Directory",
+  "localBulkEnroll": "Local Directory",
+  "serverBulkEnroll": "Server Dataset",
+  "scanningDirectory": "Scanning directory...",
+  "subjectsFound": "{count} subjects found",
+  "@subjectsFound": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "enrollingSubject": "Enrolling {current} of {total}: {name}",
+  "@enrollingSubject": {
+    "placeholders": {
+      "current": { "type": "int" },
+      "total": { "type": "int" },
+      "name": { "type": "String" }
+    }
+  },
+  "localBulkComplete": "Complete: {enrolled} enrolled, {duplicates} duplicates, {errors} errors",
+  "@localBulkComplete": {
+    "placeholders": {
+      "enrolled": { "type": "int" },
+      "duplicates": { "type": "int" },
+      "errors": { "type": "int" }
+    }
+  },
+  "noSubjectsFound": "No valid subjects found in directory",
+  "startEnroll": "Start Enroll"
 }

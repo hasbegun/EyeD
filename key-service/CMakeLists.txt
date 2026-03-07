@@ -34,6 +34,7 @@ FetchContent_MakeAvailable(nlohmann_json)
 # --- key-service executable ---
 add_executable(key-service
     src/main.cpp
+    src/nats_service.cpp
     src/he_context.cpp
     src/handlers.cpp
 )

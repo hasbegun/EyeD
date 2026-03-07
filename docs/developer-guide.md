@@ -62,6 +62,15 @@ eyed/
 │       ├── test_fnmr.py          # FNMR accuracy (CASIA1)
 │       └── test_fnmr_mmu2.py    # FNMR accuracy (MMU2)
 │
+├── key-service/              # HE decryption service (C++, OpenFHE)
+│   ├── Dockerfile            # Multi-stage: builds OpenFHE v1.4.2 from source
+│   ├── CMakeLists.txt        # C++17, fetches nats.c + nlohmann/json via FetchContent
+│   └── src/
+│       ├── main.cpp          # Entry point (~30 lines)
+│       ├── nats_service.h/cpp # NATS connection, subscriptions, signal handling
+│       ├── he_context.h/cpp  # OpenFHE BFV context: key gen/load, decrypt
+│       └── handlers.h/cpp    # NATS message handlers (decrypt_batch, decrypt_template, health)
+│
 ├── client/                   # Flutter desktop app (Mac/Linux/Windows)
 │
 ├── proto/                    # gRPC protocol definitions (Phase 2+)
@@ -114,27 +123,35 @@ docker compose down
 ### Current (Phase 1)
 
 ```
-                         ┌──────────────┐
+                         ┌───────────────┐
 ┌──────────┐             │ iris-engine   │
 │   NATS   │◄───────────►│  (Open-IRIS)  │
 │  broker  │             │               │         ┌──────────────┐
-└──────────┘             │ Pipeline Pool │────────►│  PostgreSQL  │
-                         │ (3 instances) │         │  (templates) │
-                         └──────┬────────┘         └──────────────┘
-                                │    │
-                           HTTP :9500│
-                           /analyze  │
-                           /enroll   │
-                           /health/* │
-                                     │             ┌──────────────┐
-                                     └────────────►│    Redis     │
-                                                   │ (write cache)│
-                                                   └──────────────┘
+│          │             │ Pipeline Pool │────────►│  PostgreSQL  │
+│          │             │ (3 instances) │         │  (templates) │
+│          │             └──────┬────────┘         └──────────────┘
+│          │                    │    │
+│          │               HTTP :9500│
+│          │               /analyze  │
+│          │               /enroll   │
+│          │               /health/* │
+│          │                         │             ┌──────────────┐
+│          │                         └────────────►│    Redis     │
+│          │                                       │ (write cache)│
+│          │                                       └──────────────┘
+│          │             ┌──────────────┐
+│          │◄───────────►│ key-service  │
+└──────────┘             │  (OpenFHE)   │
+                         │ BFV decrypt  │
+                         └──────────────┘
+                           No HTTP port
+                           NATS-only
 ```
 
 - **iris-engine**: Python service wrapping [Open-IRIS 1.11.0](https://github.com/worldcoin/open-iris) (Worldcoin, MIT license). Handles segmentation (with image denoising), normalization, Gabor encoding, and Hamming distance matching. Supports image_id tracing through the pipeline. Pipeline pool (3 pre-loaded instances) enables parallel batch enrollment.
-- **NATS**: Lightweight message broker for inter-service communication. Used for analyze/enroll messages and gallery sync between nodes.
-- **PostgreSQL**: Persistent storage for enrolled identities, iris templates, and match audit logs.
+- **key-service**: C++ service holding the BFV secret key. Decrypts HE ciphertexts for iris-engine via NATS request-reply. Generates keypairs on first boot into a shared Docker volume (`/keys`). No HTTP port — communicates exclusively over NATS.
+- **NATS**: Lightweight message broker for inter-service communication. Used for analyze/enroll messages, gallery sync between nodes, and HE decryption requests to key-service.
+- **PostgreSQL**: Persistent storage for enrolled identities, iris templates (HE-encrypted BYTEA), and match audit logs.
 - **Redis**: Write-through cache for bulk enrollment. Workers push to a Redis LIST (sub-ms), a background drain writer batches inserts to Postgres asynchronously.
 
 ### Planned (Phase 2+)
@@ -221,6 +238,70 @@ The iris-engine also listens on NATS subjects for production use:
 - `eyed.enroll` — submit frames for enrollment
 - Results published to `eyed.result`
 
+## key-service
+
+The key-service is a C++ microservice that holds the BFV homomorphic encryption secret key. It is the only component in the system that can decrypt ciphertexts — iris-engine encrypts templates using the public key but never has access to the secret key.
+
+### Responsibilities
+
+1. **Key generation** — On first boot, generates a BFV keypair (secret, public, eval-mult, eval-rotate) and writes them to the shared `/keys` volume. Subsequent boots load existing keys.
+2. **Batch decryption** — Decrypts encrypted inner-product ciphertexts, computes Hamming distances, and returns match results to iris-engine.
+3. **Template decryption** — Decrypts full iris/mask code ciphertexts for admin visualization (gallery detail view).
+4. **Health reporting** — Reports readiness and ring dimension.
+
+### NATS Subjects
+
+| Subject | Direction | Description |
+|---------|-----------|-------------|
+| `eyed.key.decrypt_batch` | request-reply | Decrypt batch of inner products, compute HD, return best match |
+| `eyed.key.decrypt_template` | request-reply | Decrypt full template for admin visualization |
+| `eyed.key.health` | request-reply | Health check (`{"status":"ok","ring_dimension":8192}`) |
+
+The key-service has **no HTTP port**. All communication is via NATS request-reply.
+
+### BFV Parameters
+
+These must match `iris-engine/src/he_context.py`:
+
+| Parameter | Value |
+|-----------|-------|
+| Plaintext modulus (t) | 65537 |
+| Multiplicative depth | 1 |
+| Security level | 128-bit (`HEStd_128_classic`) |
+| Iris code slots | 8192 (16 scales × 256 angles × 2 codes) |
+| Ring dimension | Auto (typically 8192 or 16384) |
+
+### Module Structure
+
+| File | Purpose |
+|------|---------|
+| `main.cpp` | Entry point (~30 lines): load config, init HE, connect NATS, wait |
+| `nats_service.h/cpp` | Config from env vars, NATS connection with retry, subscription management, signal handling |
+| `he_context.h/cpp` | OpenFHE BFV context: key generation/loading, `DecryptScalar()`, `DecryptToVector()` |
+| `handlers.h/cpp` | NATS message handlers for decrypt_batch, decrypt_template, health |
+
+### C++ Dependencies
+
+| Library | Version | Source |
+|---------|---------|--------|
+| OpenFHE | v1.4.2 | Built from source in Dockerfile |
+| nats.c | v3.8.2 | CMake FetchContent |
+| nlohmann/json | v3.11.3 | CMake FetchContent |
+
+### Building
+
+The key-service builds entirely inside Docker (multi-stage). No local C++ toolchain is needed:
+
+```bash
+# Build only key-service
+docker compose build key-service
+
+# View logs
+docker compose logs -f key-service
+```
+
+The Dockerfile builds OpenFHE from source (~5 min first build), then compiles the key-service against it. The runtime image copies only the binary and shared libraries (~60 MB).
+
 ## Configuration
 
 All settings are controlled via environment variables with `EYED_` prefix:
@@ -238,8 +319,8 @@ All settings are controlled via environment variables with `EYED_` prefix:
 | `EYED_BATCH_WORKERS` | `3` | Thread pool size for bulk enrollment (should match pool size) |
 | `EYED_BATCH_DB_SIZE` | `50` | Batch INSERT size for Redis → Postgres drain |
 | `EYED_BATCH_DB_INTERVAL` | `1.0` | Seconds between drain flushes |
-| `EYED_HE_ENABLED` | `false` | Enable OpenFHE BFV homomorphic encryption |
-| `EYED_HE_KEY_DIR` | `/keys` | Directory with HE key files (public.key, eval keys) |
+| `EYED_HE_KEY_DIR` | `/keys` | Directory with HE key files (auto-detected, no toggle) |
+| `EYED_ALLOW_PLAINTEXT` | `false` | Dev-only: allow startup without HE keys (NOT for production) |
 | `EYED_DATA_ROOT` | `/data/Iris` | Root directory for iris datasets |
 | `EYED_LOG_LEVEL` | `info` | Log level |
 
@@ -309,9 +390,10 @@ Tests include unit tests, health endpoint tests, per-frame latency benchmarks, a
 | Service | Language | Rationale |
 |---------|----------|-----------|
 | iris-engine | Python 3.10 | Open-IRIS 1.11.0 is Python-native; requires 3.10 (numpy pin incompatible with 3.12+) |
+| key-service | C++17 | Holds BFV secret key; OpenFHE is C++ native |
 | gateway | C++ (planned) | Performance-critical I/O routing |
 | capture | C++ (planned) | Embedded device, V4L2/gRPC, real-time |
 | storage | C++ (planned) | Performance preference |
 | web-ui | TypeScript (planned) | Browser SPA |
 
-Python is used **only** for iris-engine because the core algorithm library (Open-IRIS) requires it. All other services will be C++.
+Python is used **only** for iris-engine because the core algorithm library (Open-IRIS) requires it. All other services are C++.

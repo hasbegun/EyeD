@@ -33,13 +33,35 @@ async def lifespan(app: FastAPI):
 
         init_pipeline_pool(settings.pipeline_pool_size)
 
-    # Initialize OpenFHE BFV context (if HE mode enabled)
-    if settings.he_enabled:
+    # Initialize OpenFHE BFV context (auto-detected from key files)
+    from .config import _HE_REQUIRED_FILES, activate_he, detect_he_keys
+
+    if detect_he_keys(settings.he_key_dir):
         from .he_context import init_context
 
-        logger.info("Initializing HE context (key_dir=%s)...", settings.he_key_dir)
+        logger.info("HE keys found in %s — initializing HE context...", settings.he_key_dir)
         init_context(key_dir=settings.he_key_dir)
-        logger.info("HE context ready")
+        activate_he()
+        logger.info("HE context ready (tamper-proof — no env var toggle)")
+    elif settings.allow_plaintext:
+        logger.critical(
+            "*** PLAINTEXT MODE ACTIVE (EYED_ALLOW_PLAINTEXT=true) ***"
+        )
+        logger.critical(
+            "HE keys not found in %s — biometric data will NOT be encrypted at rest.",
+            settings.he_key_dir,
+        )
+        logger.critical(
+            "This mode is for DEVELOPMENT ONLY. "
+            "Raw biometric data is still blocked from HTTP responses."
+        )
+    else:
+        raise RuntimeError(
+            f"FATAL: HE key files not found in {settings.he_key_dir}. "
+            f"Required files: {', '.join(_HE_REQUIRED_FILES)}. "
+            f"Ensure key-service is running and has generated keys, "
+            f"or set EYED_ALLOW_PLAINTEXT=true for development (NOT production)."
+        )
 
     # Initialize PostgreSQL (if configured)
     if settings.db_url:

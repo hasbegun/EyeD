@@ -68,7 +68,7 @@ services:
       EYED_DB_PASSWORD_FILE: /run/secrets/db_password
       EYED_DB_URL: postgresql://__DB_USER__:__DB_PASSWORD__@postgres:5432/__DB_NAME__
       EYED_REDIS_URL: redis://redis:6379/0
-      EYED_HE_ENABLED: "false"  # Set to "true" to enable HE (requires key-service)
+      # HE auto-detected from key files in /keys (no env var toggle — tamper-proof)
       EYED_HE_KEY_DIR: /keys    # Shared volume with key-service
       EYED_LOG_LEVEL: info
       OMP_NUM_THREADS: "2"

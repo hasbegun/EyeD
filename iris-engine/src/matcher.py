@@ -9,7 +9,7 @@ from dataclasses import dataclass, field
 from typing import List
 from typing import Optional
 
-from .config import settings
+from .config import he_enabled, settings
 from .models import MatchResult
 
 logger = logging.getLogger(__name__)
@@ -24,7 +24,7 @@ class GalleryEntry:
     identity_name: str
     eye_side: str
     template: object  # Open-IRIS IrisTemplate (None when HE enabled)
-    # HE-mode fields (populated only when settings.he_enabled is True)
+    # HE-mode fields (populated only when he_enabled() is True)
     he_iris_cts: list = field(default_factory=list)
     he_mask_cts: list = field(default_factory=list)
     iris_popcount: list = field(default_factory=list)
@@ -60,7 +60,7 @@ class TemplateGallery:
         new_entries: list[GalleryEntry] = []
         for row in rows:
             try:
-                if settings.he_enabled:
+                if he_enabled():
                     # HE mode: unpack returns Ciphertext objects
                     iris_cts = unpack_codes(bytes(row["iris_codes"]))
                     mask_cts = unpack_codes(bytes(row["mask_codes"]))
@@ -171,7 +171,7 @@ class TemplateGallery:
 
         Returns identity_id if duplicate found, None otherwise.
         """
-        if settings.he_enabled:
+        if he_enabled():
             result = self._match_he(probe_template, settings.dedup_threshold)
         else:
             result = self._match(probe_template, settings.dedup_threshold)
@@ -203,7 +203,7 @@ class TemplateGallery:
 
         Returns MatchResult if match found, None if gallery is empty.
         """
-        if settings.he_enabled:
+        if he_enabled():
             return self._match_he(probe_template, settings.match_threshold)
         return self._match(probe_template, settings.match_threshold)
 

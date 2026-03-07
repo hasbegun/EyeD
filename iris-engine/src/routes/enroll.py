@@ -14,7 +14,7 @@ from typing import List
 from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
 
-from ..config import settings
+from ..config import he_enabled, settings
 from ..core import run_enroll_async
 from ..db import pack_codes
 from ..matcher import gallery
@@ -92,7 +92,7 @@ def _process_one(
             result.is_duplicate = True
             result.duplicate_identity_id = dup_id
         else:
-            if settings.he_enabled:
+            if he_enabled():
                 from ..he_context import compute_popcounts, encrypt_iris_code
 
                 he_iris_cts = [encrypt_iris_code(arr) for arr in template.iris_codes]
@@ -280,7 +280,7 @@ async def _push_persistence(
     if not entry or not (entry.template or entry.he_iris_cts):
         return
 
-    if settings.he_enabled and entry.he_iris_cts:
+    if he_enabled() and entry.he_iris_cts:
         from ..he_context import IRIS_CODE_SHAPE, pack_he_codes_from_cts
 
         iris_bytes = pack_he_codes_from_cts(entry.he_iris_cts)

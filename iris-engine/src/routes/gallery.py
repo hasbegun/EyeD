@@ -8,7 +8,7 @@ import cv2
 import numpy as np
 from fastapi import APIRouter, HTTPException
 
-from ..config import settings
+from ..config import he_enabled, settings
 from ..matcher import gallery
 from ..models import TemplateDetailResponse
 
@@ -86,7 +86,7 @@ async def gallery_template_detail(template_id: str):
     iris_raw = bytes(row["iris_codes"])
     mask_raw = bytes(row["mask_codes"])
 
-    if settings.he_enabled:
+    if he_enabled():
         from ..he_context import is_he_blob
 
         if is_he_blob(iris_raw):

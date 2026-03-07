@@ -33,6 +33,8 @@ async def analyze_endpoint(
 
     response = run_analyze(jpeg_b64, eye_side, frame_id, device_id)
     log_match(response)
+    # SECURITY: strip raw biometric data from HTTP response — internal use only
+    response.iris_template_b64 = None
     return response
 
 
@@ -44,6 +46,8 @@ async def analyze_json_endpoint(req: AnalyzeRequest):
 
     response = run_analyze(req.jpeg_b64, req.eye_side, req.frame_id, req.device_id)
     log_match(response)
+    # SECURITY: strip raw biometric data from HTTP response — internal use only
+    response.iris_template_b64 = None
     return response
 
 
@@ -89,10 +93,12 @@ async def analyze_detailed_endpoint(
         else:
             error_str = str(error_val)
 
+    # SECURITY: iris_template_b64 is NOT included in HTTP responses.
+    # Raw biometric data stays internal. Client gets visual renders only.
     return DetailedAnalyzeResponse(
         frame_id=frame_id,
         device_id=device_id,
-        iris_template_b64=template_b64,
+        iris_template_b64=None,
         match=match_result,
         latency_ms=result.get("latency_ms", 0),
         error=error_str,

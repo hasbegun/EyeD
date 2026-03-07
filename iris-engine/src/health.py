@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from .config import settings
+from .config import he_enabled, settings
 from .matcher import gallery
 from .models import HealthStatus
 from .pipeline import is_pipeline_loaded
@@ -55,4 +55,5 @@ def get_health() -> HealthStatus:
         redis_connected=_is_redis_connected(),
         pipeline_pool_size=pool_size,
         pipeline_pool_available=pool_available,
+        he_active=he_enabled(),
     )

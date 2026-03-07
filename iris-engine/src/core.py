@@ -10,7 +10,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from typing import Optional
 
-from .config import settings
+from .config import he_enabled, settings
 from .matcher import gallery
 from .models import (
     AnalyzeRequest,
@@ -107,7 +107,7 @@ def run_enroll_sync(req: EnrollRequest) -> EnrollResponse:
             duplicate_identity_name=dup_name,
         )
 
-    if settings.he_enabled:
+    if he_enabled():
         from .he_context import compute_popcounts, encrypt_iris_code
 
         he_iris_cts = [encrypt_iris_code(arr) for arr in template.iris_codes]
@@ -158,7 +158,7 @@ async def run_enroll_async(req: EnrollRequest) -> EnrollResponse:
             if entry and (entry.template or entry.he_iris_cts):
                 await ensure_identity(req.identity_id, req.identity_name)
 
-                if settings.he_enabled and entry.he_iris_cts:
+                if he_enabled() and entry.he_iris_cts:
                     from .he_context import IRIS_CODE_SHAPE, pack_he_codes_from_cts
 
                     iris_codes_bytes = pack_he_codes_from_cts(entry.he_iris_cts)
@@ -252,6 +252,11 @@ def _lookup_template_id(identity_id: Optional[str]) -> Optional[str]:
 
 def build_archive_message(req: AnalyzeRequest, resp: AnalyzeResponse) -> dict:
     """Build archive message combining request data (raw JPEG) with results."""
+    # SECURITY: only include iris template in archive when HE is active
+    # (template would be encrypted). In plaintext mode, omit to prevent
+    # biometric data leaking over unauthenticated NATS.
+    template_for_archive = resp.iris_template_b64 if he_enabled() else None
+
     msg = {
         "frame_id": resp.frame_id,
         "device_id": resp.device_id,
@@ -259,7 +264,7 @@ def build_archive_message(req: AnalyzeRequest, resp: AnalyzeResponse) -> dict:
         "eye_side": req.eye_side,
         "raw_jpeg_b64": req.jpeg_b64,
         "quality_score": req.quality_score,
-        "iris_template_b64": resp.iris_template_b64,
+        "iris_template_b64": template_for_archive,
         "latency_ms": resp.latency_ms,
         "error": resp.error,
     }

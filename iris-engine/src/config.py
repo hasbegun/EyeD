@@ -51,9 +51,15 @@ class Settings(BaseSettings):
     redis_url: str = ""
 
     # Homomorphic Encryption (OpenFHE BFV)
-    he_enabled: bool = False        # Enable HE mode (requires key-service running)
+    # NOTE: he_enabled is NOT a config field — it is auto-detected from key files.
+    # See he_enabled() function below. This prevents env-var tampering.
     he_key_dir: str = "/keys"       # Directory with public.key, eval_mult.key, eval_rotate.key
     he_key_service_subject: str = "eyed.key"  # NATS subject prefix for key-service
+
+    # Plaintext fallback (DEVELOPMENT ONLY — must be explicitly justified)
+    # Service refuses to start without HE keys unless this is set.
+    # Even with this flag, raw biometric data is never exposed in HTTP responses.
+    allow_plaintext: bool = False
 
     # Pipeline pool (pre-loaded instances for parallel batch work)
     pipeline_pool_size: int = 3
@@ -78,3 +84,37 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+
+# ---------------------------------------------------------------------------
+# HE auto-detection (tamper-proof — no env var toggle)
+# ---------------------------------------------------------------------------
+# HE is activated at startup when key files are present in he_key_dir.
+# An attacker cannot disable HE by setting an environment variable; they
+# would need filesystem access inside the container to remove key files.
+
+_he_active: bool = False
+
+_HE_REQUIRED_FILES = (
+    "cryptocontext.bin",
+    "public.key",
+    "eval_mult.key",
+    "eval_rotate.key",
+)
+
+
+def detect_he_keys(key_dir: str) -> bool:
+    """Check if all required HE key files exist in the given directory."""
+    kd = Path(key_dir)
+    return kd.is_dir() and all((kd / f).exists() for f in _HE_REQUIRED_FILES)
+
+
+def activate_he() -> None:
+    """Enable HE mode. Called once at startup after successful HE init."""
+    global _he_active
+    _he_active = True
+
+
+def he_enabled() -> bool:
+    """Return True if HE mode is active (keys loaded, context initialized)."""
+    return _he_active

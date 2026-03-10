@@ -5,6 +5,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'l10n/app_localizations.dart';
 import 'screens/enroll_screen.dart';
 import 'screens/detect_screen.dart';
+import 'screens/log_screen.dart';
 
 final localeProvider = StateProvider<Locale>((ref) => const Locale('en'));
 
@@ -54,6 +55,7 @@ class _ShellState extends ConsumerState<_Shell> {
   static const _pages = <Widget>[
     EnrollScreen(),
     DetectScreen(),
+    LogScreen(),
   ];
 
   @override
@@ -103,6 +105,11 @@ class _ShellState extends ConsumerState<_Shell> {
                 icon: const Icon(Icons.search_outlined),
                 selectedIcon: const Icon(Icons.search),
                 label: Text(l.detectPage),
+              ),
+              NavigationRailDestination(
+                icon: const Icon(Icons.history_outlined),
+                selectedIcon: const Icon(Icons.history),
+                label: Text(l.logPage),
               ),
             ],
           ),

@@ -385,6 +385,78 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Server error'**
   String get serverError;
+
+  /// No description provided for @logPage.
+  ///
+  /// In en, this message translates to:
+  /// **'Log'**
+  String get logPage;
+
+  /// No description provided for @logFilterAll.
+  ///
+  /// In en, this message translates to:
+  /// **'All'**
+  String get logFilterAll;
+
+  /// No description provided for @logFilterMatch.
+  ///
+  /// In en, this message translates to:
+  /// **'Match'**
+  String get logFilterMatch;
+
+  /// No description provided for @logFilterNoMatch.
+  ///
+  /// In en, this message translates to:
+  /// **'No match'**
+  String get logFilterNoMatch;
+
+  /// No description provided for @logFilterError.
+  ///
+  /// In en, this message translates to:
+  /// **'Error'**
+  String get logFilterError;
+
+  /// No description provided for @logSearchPlaceholder.
+  ///
+  /// In en, this message translates to:
+  /// **'Search identity...'**
+  String get logSearchPlaceholder;
+
+  /// No description provided for @logHeaderTime.
+  ///
+  /// In en, this message translates to:
+  /// **'Time'**
+  String get logHeaderTime;
+
+  /// No description provided for @logHeaderHd.
+  ///
+  /// In en, this message translates to:
+  /// **'HD'**
+  String get logHeaderHd;
+
+  /// No description provided for @logHeaderStatus.
+  ///
+  /// In en, this message translates to:
+  /// **'Status'**
+  String get logHeaderStatus;
+
+  /// No description provided for @logHeaderLatency.
+  ///
+  /// In en, this message translates to:
+  /// **'Latency'**
+  String get logHeaderLatency;
+
+  /// No description provided for @logEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No detection results yet.'**
+  String get logEmpty;
+
+  /// No description provided for @logClear.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear log'**
+  String get logClear;
 }
 
 class _AppLocalizationsDelegate

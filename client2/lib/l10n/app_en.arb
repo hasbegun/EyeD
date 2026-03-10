@@ -62,5 +62,18 @@
   "@detectError": { "placeholders": { "error": { "type": "String" } } },
 
   "connectionError": "Cannot connect to server",
-  "serverError": "Server error"
+  "serverError": "Server error",
+
+  "logPage": "Log",
+  "logFilterAll": "All",
+  "logFilterMatch": "Match",
+  "logFilterNoMatch": "No match",
+  "logFilterError": "Error",
+  "logSearchPlaceholder": "Search identity...",
+  "logHeaderTime": "Time",
+  "logHeaderHd": "HD",
+  "logHeaderStatus": "Status",
+  "logHeaderLatency": "Latency",
+  "logEmpty": "No detection results yet.",
+  "logClear": "Clear log"
 }

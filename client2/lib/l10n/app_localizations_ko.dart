@@ -167,4 +167,40 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get serverError => '서버 오류';
+
+  @override
+  String get logPage => '로그';
+
+  @override
+  String get logFilterAll => '전체';
+
+  @override
+  String get logFilterMatch => '일치';
+
+  @override
+  String get logFilterNoMatch => '불일치';
+
+  @override
+  String get logFilterError => '오류';
+
+  @override
+  String get logSearchPlaceholder => '신원 검색...';
+
+  @override
+  String get logHeaderTime => '시간';
+
+  @override
+  String get logHeaderHd => 'HD';
+
+  @override
+  String get logHeaderStatus => '상태';
+
+  @override
+  String get logHeaderLatency => '지연시간';
+
+  @override
+  String get logEmpty => '탐지 결과가 없습니다.';
+
+  @override
+  String get logClear => '로그 삭제';
 }

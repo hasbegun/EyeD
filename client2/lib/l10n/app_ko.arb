@@ -54,5 +54,18 @@
   "detectError": "탐지 실패: {error}",
 
   "connectionError": "서버에 연결할 수 없습니다",
-  "serverError": "서버 오류"
+  "serverError": "서버 오류",
+
+  "logPage": "로그",
+  "logFilterAll": "전체",
+  "logFilterMatch": "일치",
+  "logFilterNoMatch": "불일치",
+  "logFilterError": "오류",
+  "logSearchPlaceholder": "신원 검색...",
+  "logHeaderTime": "시간",
+  "logHeaderHd": "HD",
+  "logHeaderStatus": "상태",
+  "logHeaderLatency": "지연시간",
+  "logEmpty": "탐지 결과가 없습니다.",
+  "logClear": "로그 삭제"
 }

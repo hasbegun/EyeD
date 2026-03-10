@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../l10n/app_localizations.dart';
 import '../models/analyze_result.dart';
 import '../providers/api_client_provider.dart';
+import '../providers/log_provider.dart';
 
 class DetectScreen extends ConsumerStatefulWidget {
   const DetectScreen({super.key});
@@ -58,6 +59,7 @@ class _DetectScreenState extends ConsumerState<DetectScreen> {
       final client = ref.read(apiClientProvider);
       // Try left eye first — the analyze endpoint doesn't require a specific side
       final resp = await client.analyzeImage(_imageBytes!, 'left');
+      ref.read(logProvider.notifier).add(resp, fileName: _fileName);
       if (mounted) setState(() => _result = resp);
     } catch (e) {
       if (mounted) {

@@ -168,4 +168,40 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get serverError => 'Server error';
+
+  @override
+  String get logPage => 'Log';
+
+  @override
+  String get logFilterAll => 'All';
+
+  @override
+  String get logFilterMatch => 'Match';
+
+  @override
+  String get logFilterNoMatch => 'No match';
+
+  @override
+  String get logFilterError => 'Error';
+
+  @override
+  String get logSearchPlaceholder => 'Search identity...';
+
+  @override
+  String get logHeaderTime => 'Time';
+
+  @override
+  String get logHeaderHd => 'HD';
+
+  @override
+  String get logHeaderStatus => 'Status';
+
+  @override
+  String get logHeaderLatency => 'Latency';
+
+  @override
+  String get logEmpty => 'No detection results yet.';
+
+  @override
+  String get logClear => 'Clear log';
 }

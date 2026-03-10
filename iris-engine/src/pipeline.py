@@ -28,40 +28,51 @@ def _get_iris_module():
     return _iris_module
 
 
-def _build_pipeline_config(runtime: str) -> Optional[dict[str, Any]]:
-    """Build a custom pipeline config to override ONNX execution provider.
+_SEMSEG_MODEL = "iris_semseg_upp_scse_mobilenetv2.onnx"
 
-    Open-IRIS hardcodes CPUExecutionProvider in its default config.
-    To use CUDA or CoreML, we need to provide a custom config that
-    overrides the segmentation node's provider list.
+
+def _build_pipeline_config(runtime: str) -> Optional[dict[str, Any]]:
+    """Build a custom pipeline config to override ONNX model path and provider.
+
+    When a local model file exists in settings.model_dir, we load it directly
+    instead of downloading from HuggingFace at startup.
     """
-    if runtime == "cpu":
-        return None  # Use default config
+    import os
+
+    local_model = os.path.join(settings.model_dir, _SEMSEG_MODEL)
+    use_local = os.path.isfile(local_model)
 
     providers_map = {
         "cuda": ["CUDAExecutionProvider", "CPUExecutionProvider"],
         "coreml": ["CoreMLExecutionProvider", "CPUExecutionProvider"],
     }
-
     providers = providers_map.get(runtime)
-    if providers is None:
-        logger.warning("Unknown runtime '%s', falling back to CPU", runtime)
-        return None
 
-    # Override the segmentation node's execution providers.
-    # This config structure follows Open-IRIS's pipeline YAML format.
-    return {
-        "metadata": {"pipeline_name": "eyed_iris_pipeline"},
-        "pipeline": [
-            {
-                "name": "segmentation",
-                "algorithm": {
-                    "class_name": "iris.nodes.segmentation.onnx_multilabel_segmentation.ONNXMultilabelSegmentation",
-                    "params": {"providers": providers},
-                },
-            },
-        ],
-    }
+    if not use_local and providers is None:
+        return None  # Default config: download from HF, CPU provider
+
+    if use_local:
+        logger.info("Using local segmentation model: %s", local_model)
+
+    # Load the full default config and patch the segmentation node
+    iris = _get_iris_module()
+    config = iris.IRISPipeline.load_config(None)
+
+    seg_params: dict[str, Any] = {}
+    if use_local:
+        seg_params["model_path"] = local_model
+    if providers:
+        seg_params["providers"] = providers
+
+    for node in config.get("pipeline", []):
+        if node.get("name") == "segmentation":
+            node["algorithm"] = {
+                "class_name": "iris.nodes.segmentation.onnx_multilabel_segmentation.ONNXMultilabelSegmentation",
+                "params": seg_params,
+            }
+            break
+
+    return config
 
 
 def get_pipeline():

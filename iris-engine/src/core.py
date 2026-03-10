@@ -110,7 +110,9 @@ def run_enroll_sync(req: EnrollRequest) -> EnrollResponse:
     if he_enabled():
         from .he_context import compute_popcounts, encrypt_iris_code
 
+        logger.warning("HE encrypting iris codes (%d arrays)...", len(template.iris_codes))
         he_iris_cts = [encrypt_iris_code(arr) for arr in template.iris_codes]
+        logger.warning("HE iris done, encrypting mask codes...")
         he_mask_cts = [encrypt_iris_code(arr) for arr in template.mask_codes]
         iris_popcount = compute_popcounts(template.iris_codes)
         mask_popcount = compute_popcounts(template.mask_codes)

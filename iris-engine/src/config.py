@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     dedup_threshold: float = 0.32
 
     # Pipeline
+    model_dir: str = "/app/models"  # Directory with pre-downloaded ONNX models
     rotation_shift: int = 15
 
     # Database (empty = pure in-memory mode, no persistence)

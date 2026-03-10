@@ -132,7 +132,8 @@ def _process_one(
 @router.post("/enroll", response_model=EnrollResponse)
 async def enroll_endpoint(req: EnrollRequest):
     """Enroll a new identity with an eye image."""
-    return await run_enroll_async(req)
+    result = await run_enroll_async(req)
+    return result
 
 
 @router.post("/enroll/batch")

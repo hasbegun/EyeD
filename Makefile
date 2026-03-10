@@ -1,4 +1,4 @@
-.PHONY: up down dev build build-gateway build-capture build-client build-storage rebuild logs health ready test test-fnmr test-fnmr-mmu2 test-bench shell status clean nuke ps gallery webcam webcam-macos webcam-relay build-tools dev-client dev-client-macos build-client-web build-client-macos db-shell db-reset export-training
+.PHONY: up down dev build build-gateway build-capture build-client build-storage rebuild logs health ready test test-fnmr test-fnmr-mmu2 test-bench shell status clean nuke ps gallery webcam webcam-macos webcam-relay build-tools dev-client dev-client-macos build-client-web build-client-macos dev-client2 dev-client2-macos build-client2-web build-client2-macos db-shell db-reset db-clean export-training download-models
 
 # --- Core ---
 
@@ -146,6 +146,20 @@ build-client-web:   ## Build Flutter client for web
 build-client-macos: ## Build Flutter client for macOS
 	cd client && $(FLUTTER) build macos --release
 
+# --- Flutter Client2 ---
+
+dev-client2:        ## Start Flutter client2 (web, Chrome)
+	cd client2 && $(FLUTTER) run -d chrome
+
+dev-client2-macos:  ## Start Flutter client2 (macOS native)
+	cd client2 && $(FLUTTER) run -d macos
+
+build-client2-web:  ## Build Flutter client2 for web
+	cd client2 && $(FLUTTER) build web --release
+
+build-client2-macos: ## Build Flutter client2 for macOS
+	cd client2 && $(FLUTTER) build macos --release
+
 # --- Database ---
 
 db-shell:          ## Open psql shell in postgres container
@@ -153,12 +167,37 @@ db-shell:          ## Open psql shell in postgres container
 
 db-reset:          ## Drop and recreate database schema
 	docker compose exec postgres psql -U eyed -d eyed -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
-	docker compose exec postgres psql -U eyed -d eyed -f /docker-entrypoint-initdb.d/init.sql
+	docker compose exec postgres psql -U eyed -d eyed -f /docker-entrypoint-initdb.d/01-init.sql
+
+db-clean:          ## Clean database for dev (warns before deleting)
+	@echo ""
+	@echo "  WARNING: This will DELETE ALL DATA in the eyed database."
+	@echo "  All identities, templates, and match logs will be permanently lost."
+	@echo "  This action is IRREVERSIBLE."
+	@echo ""
+	@read -p "  Are you sure? [y/N] " confirm && [ "$$confirm" = "y" ] || (echo "  Aborted." && exit 1)
+	@echo "  Cleaning database..."
+	docker compose exec postgres psql -U eyed -d eyed -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
+	docker compose exec postgres psql -U eyed -d eyed -f /docker-entrypoint-initdb.d/01-init.sql
+	@echo "  Database cleaned and schema recreated."
 
 # --- Training Data ---
 
 export-training:   ## Export training dataset from archive
 	python3 scripts/export_training.py --db-url postgresql://eyed:eyed_dev@localhost:9506/eyed --archive-root ./data/archive --output-dir ./data/training-export
+
+# --- Models ---
+
+download-models:   ## Download ONNX segmentation model from HuggingFace
+	@mkdir -p models
+	@if [ -f models/iris_semseg_upp_scse_mobilenetv2.onnx ]; then \
+		echo "  Model already exists: models/iris_semseg_upp_scse_mobilenetv2.onnx"; \
+	else \
+		echo "  Downloading segmentation model from HuggingFace..."; \
+		curl -L -o models/iris_semseg_upp_scse_mobilenetv2.onnx \
+			"https://huggingface.co/Worldcoin/iris-semantic-segmentation/resolve/main/iris_semseg_upp_scse_mobilenetv2.onnx"; \
+		echo "  Done."; \
+	fi
 
 # --- Cleanup ---
 

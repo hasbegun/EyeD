@@ -457,6 +457,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Clear log'**
   String get logClear;
+
+  /// No description provided for @engine1Label.
+  ///
+  /// In en, this message translates to:
+  /// **'Engine 1'**
+  String get engine1Label;
+
+  /// No description provided for @engine2Label.
+  ///
+  /// In en, this message translates to:
+  /// **'Engine 2'**
+  String get engine2Label;
 }
 
 class _AppLocalizationsDelegate

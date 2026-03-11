@@ -1,4 +1,4 @@
-.PHONY: up down dev build build-gateway build-capture build-client build-storage rebuild logs health ready test test-fnmr test-fnmr-mmu2 test-bench shell status clean nuke ps gallery webcam webcam-macos webcam-relay build-tools dev-client dev-client-macos build-client-web build-client-macos dev-client2 dev-client2-macos build-client2-web build-client2-macos db-shell db-reset db-clean export-training download-models
+.PHONY: up down dev build build-gateway build-capture build-client build-storage rebuild logs health ready test test-fnmr test-fnmr-mmu2 test-bench shell status clean nuke ps gallery webcam webcam-macos webcam-relay build-tools dev-client dev-client-macos build-client-web build-client-macos dev-client2 dev-client2-macos build-client2-web build-client2-macos db-shell db-reset db-clean export-training download-models build-iris2 test-iris2 clean-iris2
 
 # --- Core ---
 
@@ -42,6 +42,7 @@ ps:                ## Show running containers
 
 health:            ## Liveness check (all services)
 	@echo "--- iris-engine ---" && curl -s http://localhost:9500/health/alive | python3 -m json.tool
+	@echo "--- iris-engine2 ---" && curl -s http://localhost:9510/health/alive | python3 -m json.tool 2>/dev/null || echo '  (not running)'
 	@echo "--- gateway ---" && curl -s http://localhost:9504/health/alive | python3 -m json.tool
 	@echo "--- storage ---" && curl -s http://localhost:9507/health/alive | python3 -m json.tool 2>/dev/null || echo '  (not running)'
 
@@ -199,6 +200,37 @@ download-models:   ## Download ONNX segmentation model from HuggingFace
 		echo "  Done."; \
 	fi
 
+# --- iris-engine2 (C++ libiris) ---
+
+IRIS2_SRC := iris-engine2/.libiris
+IRIS2_BUILD := iris-engine2/build
+
+build-iris2:       ## Build iris-engine2 C++ library (in container)
+	docker compose -f $(IRIS2_SRC)/docker-compose.yml build test
+
+test-iris2:        ## Run iris-engine2 C++ tests (in container)
+	docker compose -f $(IRIS2_SRC)/docker-compose.yml run --rm test
+
+clean-iris2:       ## Remove iris-engine2 build artifacts
+	docker compose -f $(IRIS2_SRC)/docker-compose.yml down --rmi local --remove-orphans 2>/dev/null || true
+
+# --- iris-engine2 service ---
+
+build-engine2:     ## Build iris-engine2 service Docker image
+	docker compose build iris-engine2
+
+up-engine2:        ## Start iris-engine2 service (port 9510)
+	docker compose up iris-engine2
+
+logs-engine2:      ## Follow iris-engine2 logs
+	docker compose logs -f iris-engine2
+
+health-engine2:    ## Health check iris-engine2
+	@echo "--- iris-engine2 ---" && curl -s http://localhost:9510/health/ready | python3 -m json.tool
+
+gallery-engine2:   ## Show iris-engine2 gallery size
+	@curl -s http://localhost:9510/gallery/size | python3 -m json.tool
+
 # --- Cleanup ---
 
 clean:             ## Stop and remove volumes
@@ -210,6 +242,6 @@ nuke:              ## Remove everything (containers, volumes, images, networks)
 # --- Help ---
 
 help:              ## Show this help
-	@grep -E '^[a-zA-Z_-]+:.*##' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}'
+	@grep -E '^[a-zA-Z0-9_-]+:.*##' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}'
 
 .DEFAULT_GOAL := help

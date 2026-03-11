@@ -109,7 +109,7 @@ class _IdentityTile extends ConsumerWidget {
   void _showDetail(BuildContext context, WidgetRef ref) {
     showDialog(
       context: context,
-      builder: (_) => _IdentityDetailDialog(identity: identity, ref: ref),
+      builder: (_) => _IdentityDetailDialog(identity: identity),
     );
   }
 }
@@ -144,17 +144,18 @@ class _EyeBadge extends StatelessWidget {
   }
 }
 
-class _IdentityDetailDialog extends StatefulWidget {
+class _IdentityDetailDialog extends ConsumerStatefulWidget {
   final GalleryIdentity identity;
-  final WidgetRef ref;
 
-  const _IdentityDetailDialog({required this.identity, required this.ref});
+  const _IdentityDetailDialog({required this.identity});
 
   @override
-  State<_IdentityDetailDialog> createState() => _IdentityDetailDialogState();
+  ConsumerState<_IdentityDetailDialog> createState() =>
+      _IdentityDetailDialogState();
 }
 
-class _IdentityDetailDialogState extends State<_IdentityDetailDialog> {
+class _IdentityDetailDialogState
+    extends ConsumerState<_IdentityDetailDialog> {
   TemplateDetail? _selectedDetail;
   bool _loadingDetail = false;
   String? _detailError;
@@ -176,7 +177,7 @@ class _IdentityDetailDialogState extends State<_IdentityDetailDialog> {
     });
     try {
       final detail =
-          await widget.ref.read(apiClientProvider).getTemplateDetail(templateId);
+          await ref.read(apiClientProvider).getTemplateDetail(templateId);
       if (mounted) setState(() => _selectedDetail = detail);
     } catch (e) {
       if (mounted) setState(() => _detailError = 'Failed to load template');
@@ -301,7 +302,7 @@ class _IdentityDetailDialogState extends State<_IdentityDetailDialog> {
               ),
             );
             if (confirmed == true && context.mounted) {
-              await widget.ref
+              await ref
                   .read(galleryProvider.notifier)
                   .deleteIdentity(id.identityId);
               if (context.mounted) Navigator.pop(context);

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'l10n/app_localizations.dart';
+import 'providers/engine_provider.dart';
 import 'screens/enroll_screen.dart';
 import 'screens/detect_screen.dart';
 import 'screens/log_screen.dart';
@@ -62,6 +63,8 @@ class _ShellState extends ConsumerState<_Shell> {
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
     final locale = ref.watch(localeProvider);
+    final engine = ref.watch(selectedEngineProvider);
+    final theme = Theme.of(context);
 
     return Scaffold(
       appBar: AppBar(
@@ -71,6 +74,29 @@ class _ShellState extends ConsumerState<_Shell> {
           onPressed: () => setState(() => _extended = !_extended),
         ),
         actions: [
+          // Engine switch
+          SegmentedButton<SelectedEngine>(
+            segments: [
+              ButtonSegment(
+                value: SelectedEngine.engine1,
+                label: Text(l.engine1Label),
+              ),
+              ButtonSegment(
+                value: SelectedEngine.engine2,
+                label: Text(l.engine2Label),
+              ),
+            ],
+            selected: {engine},
+            onSelectionChanged: (v) =>
+                ref.read(selectedEngineProvider.notifier).state = v.first,
+            style: ButtonStyle(
+              visualDensity: VisualDensity.compact,
+              textStyle: WidgetStatePropertyAll(
+                theme.textTheme.labelSmall,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
           TextButton(
             onPressed: () {
               final next = locale.languageCode == 'en'
@@ -81,7 +107,7 @@ class _ShellState extends ConsumerState<_Shell> {
             child: Text(
               locale.languageCode == 'en' ? '한국어' : 'EN',
               style: TextStyle(
-                color: Theme.of(context).colorScheme.onSurface,
+                color: theme.colorScheme.onSurface,
               ),
             ),
           ),

@@ -75,5 +75,8 @@
   "logHeaderStatus": "Status",
   "logHeaderLatency": "Latency",
   "logEmpty": "No detection results yet.",
-  "logClear": "Clear log"
+  "logClear": "Clear log",
+
+  "engine1Label": "Engine 1",
+  "engine2Label": "Engine 2"
 }

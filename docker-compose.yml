@@ -3,7 +3,8 @@ services:
     image: postgres:16
     volumes:
       - pgdata:/var/lib/postgresql/data
-      - ./config/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - ./config/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+      - ./config/init-engine2.sh:/docker-entrypoint-initdb.d/02-init-engine2.sh:ro
     secrets:
       - db_user
       - db_name
@@ -81,6 +82,36 @@ services:
       timeout: 3s
       retries: 30
       start_period: 60s
+
+  iris-engine2:
+    build:
+      context: ./iris-engine2
+      additional_contexts:
+        libiris: ./iris-engine2/.libiris
+    ports:
+      - "9510:7000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    secrets:
+      - db_user
+      - db_name_engine2
+      - db_password
+    volumes:
+      - ./models:/src/models:ro
+    environment:
+      EYED_DB_USER_FILE: /run/secrets/db_user
+      EYED_DB_NAME_FILE: /run/secrets/db_name_engine2
+      EYED_DB_PASSWORD_FILE: /run/secrets/db_password
+      EYED_DB_URL: postgresql://__DB_USER__:__DB_PASSWORD__@postgres:5432/__DB_NAME__
+      EYED_PIPELINE_CONFIG: /src/libiris/pipeline.yaml
+      EYED_ALLOW_PLAINTEXT: "true"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:7000/health/ready | grep -q ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 120s
 
   key-service:
     build:
@@ -173,6 +204,8 @@ secrets:
     file: ./secrets/db_user.txt
   db_name:
     file: ./secrets/db_name.txt
+  db_name_engine2:
+    file: ./secrets/db_name_engine2.txt
   db_password:
     file: ./secrets/db_password.txt
 

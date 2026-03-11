@@ -6,5 +6,5 @@ enum SelectedEngine {
 }
 
 final selectedEngineProvider = StateProvider<SelectedEngine>(
-  (ref) => SelectedEngine.engine1,
+  (ref) => SelectedEngine.engine2,
 );

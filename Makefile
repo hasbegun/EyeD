@@ -205,6 +205,9 @@ download-models:   ## Download ONNX segmentation model from HuggingFace
 IRIS2_SRC := iris-engine2/.libiris
 IRIS2_BUILD := iris-engine2/build
 
+stage-iris2:
+  ln -s ../../BiometricLib/iris ./.libiris
+
 build-iris2:       ## Build iris-engine2 C++ library (in container)
 	docker compose -f $(IRIS2_SRC)/docker-compose.yml build test
 

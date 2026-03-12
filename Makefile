@@ -1,4 +1,4 @@
-.PHONY: up down dev build build-gateway build-capture build-client build-storage rebuild logs health ready test test-fnmr test-fnmr-mmu2 test-bench shell status clean nuke ps gallery webcam webcam-macos webcam-relay build-tools dev-client dev-client-macos build-client-web build-client-macos dev-client2 dev-client2-macos build-client2-web build-client2-macos db-shell db-reset db-clean export-training download-models build-iris2 test-iris2 clean-iris2
+.PHONY: up down dev build build-gateway build-capture build-client build-storage rebuild logs health ready test test-fnmr test-fnmr-mmu2 test-bench shell status clean nuke ps gallery webcam webcam-macos webcam-relay build-tools dev-client dev-client-macos build-client-web build-client-macos dev-client2 dev-client2-macos build-client2-web build-client2-macos db-shell db-reset db-clean export-training download-models build-iris2 test-iris2 test-iris2-local test-iris-engine2-container clean-iris2
 
 # --- Core ---
 
@@ -210,6 +210,12 @@ build-iris2:       ## Build iris-engine2 C++ library (in container)
 
 test-iris2:        ## Run iris-engine2 C++ tests (in container)
 	docker compose -f $(IRIS2_SRC)/docker-compose.yml run --rm test
+
+test-iris2-local: ## Build and run iris-engine2 tests locally
+	cd iris-engine2 && mkdir -p build && cd build && cmake .. && cmake --build . --target test && ctest --output-on-failure
+
+test-iris-engine2-container: ## Run iris-engine2 C++ unit tests in container
+	cd iris-engine2 && docker compose -f docker-compose.test.yml build --no-cache && docker compose -f docker-compose.test.yml run --rm test
 
 clean-iris2:       ## Remove iris-engine2 build artifacts
 	docker compose -f $(IRIS2_SRC)/docker-compose.yml down --rmi local --remove-orphans 2>/dev/null || true

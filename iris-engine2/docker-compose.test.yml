@@ -1,0 +1,11 @@
+version: "3.8"
+
+services:
+  test:
+    build:
+      context: .
+      target: test
+      additional_contexts:
+        libiris: ./.libiris
+    command: ["cmake", "--build", "build", "--target", "test"]
+

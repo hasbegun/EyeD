@@ -1,40 +1,53 @@
-FROM golang:1.24-bookworm AS build
+# =============================================================================
+# EyeD Gateway — C++ multi-stage Dockerfile
+# Build context: project root (.)
+# =============================================================================
 
-# Install protoc and Go plugins
+# --- Stage 1: build ---
+FROM debian:bookworm AS build
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV GIT_SSL_NO_VERIFY=true
+
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    protobuf-compiler \
+    cmake ninja-build g++ git ca-certificates \
+    libgrpc++-dev libprotobuf-dev protobuf-compiler protobuf-compiler-grpc \
+    nlohmann-json3-dev \
+    libboost-dev libboost-system-dev \
+    libssl-dev \
     && rm -rf /var/lib/apt/lists/*
-RUN go install google.golang.org/protobuf/cmd/protoc-gen-go@latest \
-    && go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
 
-WORKDIR /app
+WORKDIR /src
 
-# Copy proto definition and generate Go code
-COPY proto/capture.proto /proto/
-RUN mkdir -p /app/proto/eyed && \
-    protoc --go_out=/app/proto/eyed --go_opt=paths=source_relative \
-           --go-grpc_out=/app/proto/eyed --go-grpc_opt=paths=source_relative \
-           -I/proto \
-           /proto/capture.proto
+# Proto definition (shared with capture device)
+COPY proto/ /proto/
 
-# Copy all gateway source
-COPY gateway/ ./
+# Gateway source
+COPY gateway/CMakeLists.txt .
+COPY gateway/src/    src/
+COPY gateway/tests/  tests/
+COPY gateway/tools/  tools/
 
-# Resolve dependencies and build
-RUN go mod tidy && CGO_ENABLED=0 go build -o /gateway ./cmd/gateway \
-    && CGO_ENABLED=0 go build -o /integration-test ./cmd/integration-test \
-    && CGO_ENABLED=0 go build -o /ws-test ./cmd/ws-test
+RUN cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
+    && cmake --build build --parallel $(nproc)
 
-# --- Runtime ---
-FROM debian:bookworm-slim
+# --- Stage 2: test ---
+FROM build AS test
+
+RUN cd build && ctest -R "^test_" --output-on-failure
+
+# --- Stage 3: runtime ---
+FROM debian:bookworm-slim AS runtime
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates curl \
+    libgrpc++1.51 libprotobuf32 \
+    libboost-system1.81.0 \
     && rm -rf /var/lib/apt/lists/*
 
-COPY --from=build /gateway /app/gateway
-COPY --from=build /integration-test /app/integration-test
-COPY --from=build /ws-test /app/ws-test
+COPY --from=build /src/build/gateway           /app/gateway
+COPY --from=build /src/build/tools/integration_test /app/integration_test
+COPY --from=build /src/build/tools/ws_test          /app/ws_test
 
 EXPOSE 50051 8080
 

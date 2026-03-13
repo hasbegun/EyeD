@@ -188,6 +188,18 @@ abstract class AppLocalizations {
   /// **'Enrolled successfully'**
   String get enrollSuccess;
 
+  /// No description provided for @enrollSuccessEncrypted.
+  ///
+  /// In en, this message translates to:
+  /// **'Enrolled — template encrypted 🔒'**
+  String get enrollSuccessEncrypted;
+
+  /// No description provided for @enrollSuccessPlain.
+  ///
+  /// In en, this message translates to:
+  /// **'Enrolled — template plaintext'**
+  String get enrollSuccessPlain;
+
   /// No description provided for @enrollDuplicate.
   ///
   /// In en, this message translates to:
@@ -307,6 +319,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Mask Code'**
   String get maskCode;
+
+  /// No description provided for @templateEncrypted.
+  ///
+  /// In en, this message translates to:
+  /// **'Encrypted (FHE)'**
+  String get templateEncrypted;
+
+  /// No description provided for @templatePlaintext.
+  ///
+  /// In en, this message translates to:
+  /// **'Plaintext'**
+  String get templatePlaintext;
+
+  /// No description provided for @encryptedNoPreview.
+  ///
+  /// In en, this message translates to:
+  /// **'Template is FHE-encrypted — iris code not available for preview'**
+  String get encryptedNoPreview;
 
   /// No description provided for @deleteIdentity.
   ///

@@ -5,10 +5,10 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-# --- Build libiris as subdirectory (no tests/bench/FHE for service) ---
+# --- Build libiris as subdirectory (FHE enabled, no tests/bench) ---
 set(IRIS_ENABLE_TESTS OFF CACHE BOOL "" FORCE)
 set(IRIS_ENABLE_BENCH OFF CACHE BOOL "" FORCE)
-set(IRIS_ENABLE_FHE OFF CACHE BOOL "" FORCE)
+set(IRIS_ENABLE_FHE ON CACHE BOOL "" FORCE)
 set(IRIS_ENABLE_COMPARISON OFF CACHE BOOL "" FORCE)
 add_subdirectory(libiris)
 
@@ -30,7 +30,12 @@ pkg_check_modules(LIBPQ REQUIRED IMPORTED_TARGET libpq)
 add_executable(iris-engine2
     src/main.cpp
     src/db.cpp
+    src/fhe.cpp
     src/gallery.cpp
+    src/routes_health.cpp
+    src/routes_analyze.cpp
+    src/routes_enroll.cpp
+    src/routes_gallery.cpp
 )
 
 target_include_directories(iris-engine2 PRIVATE
@@ -46,5 +51,8 @@ target_link_libraries(iris-engine2 PRIVATE
 # Relax -Werror inherited from libiris for service code
 target_compile_options(iris-engine2 PRIVATE -Wno-error)
 
-# --- Tests ---
-add_subdirectory(tests)
+# --- Tests (only when tests/ directory is present) ---
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tests")
+    enable_testing()
+    add_subdirectory(tests)
+endif()

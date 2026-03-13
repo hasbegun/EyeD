@@ -7,7 +7,7 @@ ARG RUNTIME=cpu
 FROM python:3.10-slim-bookworm AS openfhe-builder
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    cmake g++ make git autoconf libomp-dev \
+    ca-certificates cmake g++ make git autoconf libomp-dev \
     python3-dev \
     && rm -rf /var/lib/apt/lists/*
 

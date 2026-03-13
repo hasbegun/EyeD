@@ -91,7 +91,7 @@ TEST_CASE("Database log_match when not connected") {
     // Should not crash when not connected
     db.log_match("frame-1", "template-1", "identity-1", 0.3, true, "device-1", 100);
     // No assertion needed - just verify it doesn't crash
-    CHECK_TRUE(true);
+    CHECK(true);
 }
 
 // Test serialization/deserialization with mock data
@@ -102,8 +102,7 @@ TEST_CASE("Database serialize_codes empty") {
 }
 
 TEST_CASE("Database deserialize_codes empty") {
-    const uint8_t data[] = {};
-    auto result = Database::deserialize_codes(data, 0);
+    auto result = Database::deserialize_codes(nullptr, 0);
     CHECK(result.empty());
 }
 

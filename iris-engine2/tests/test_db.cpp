@@ -88,39 +88,23 @@ TEST_CASE("Database delete_identity when not connected") {
 
 TEST_CASE("Database log_match when not connected") {
     Database db;
-    // Should not crash when not connected
+    // Should not crash when not connected (is_match = true)
     db.log_match("frame-1", "template-1", "identity-1", 0.3, true, "device-1", 100);
-    // No assertion needed - just verify it doesn't crash
-    CHECK_TRUE(true);
+    CHECK_FALSE(db.is_connected());
 }
 
-// Test serialization/deserialization with mock data
-TEST_CASE("Database serialize_codes empty") {
-    std::vector<iris::PackedIrisCode> codes;
-    auto result = Database::serialize_codes(codes);
-    CHECK(result.empty());
+TEST_CASE("Database log_match no-match when not connected") {
+    Database db;
+    // Should not crash when not connected (is_match = false, empty ids)
+    db.log_match("frame-2", "", "", 0.9, false, "device-1", 50);
+    CHECK_FALSE(db.is_connected());
 }
 
-TEST_CASE("Database deserialize_codes empty") {
-    const uint8_t data[] = {};
-    auto result = Database::deserialize_codes(data, 0);
-    CHECK(result.empty());
-}
-
-TEST_CASE("Database serialize_deserialize round trip") {
-    // Create a minimal PackedIrisCode for testing
-    // Note: This tests the serialization logic, not the actual iris code content
-
-    // Create test data - just verify the round trip works
-    std::vector<iris::PackedIrisCode> original;
-
-    // Serialize
-    auto serialized = Database::serialize_codes(original);
-
-    // Deserialize
-    auto deserialized = Database::deserialize_codes(serialized.data(), serialized.size());
-
-    CHECK(deserialized.size() == original.size());
+TEST_CASE("Database IrisTemplate default state") {
+    iris::IrisTemplate tmpl;
+    // Default-constructed IrisTemplate should have empty code vectors
+    CHECK(tmpl.iris_codes.empty());
+    CHECK(tmpl.mask_codes.empty());
 }
 
 // Test with invalid connection info

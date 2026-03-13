@@ -30,8 +30,14 @@ add_executable(test_gallery test_gallery.cpp)
 target_link_libraries(test_gallery PRIVATE doctest::doctest iris)
 target_include_directories(test_gallery PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../src)
 
+# Test main utilities (UUID generator)
+add_executable(test_main test_main.cpp)
+target_link_libraries(test_main PRIVATE doctest::doctest)
+target_include_directories(test_main PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../src)
+
 # --- Register tests with CTest ---
 add_test(NAME test_config COMMAND test_config)
 add_test(NAME test_db COMMAND test_db)
 add_test(NAME test_gallery COMMAND test_gallery)
+add_test(NAME test_main COMMAND test_main)
 

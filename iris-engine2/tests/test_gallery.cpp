@@ -1,6 +1,7 @@
 #include "gallery.h"
 
 #include <doctest/doctest.h>
+#include <thread>
 #include <vector>
 #include <string>
 
@@ -286,30 +287,69 @@ TEST_CASE("Gallery threshold behavior") {
     CHECK(low_threshold_gallery.size() == 1);
 }
 
-TEST_CASE("Gallery thread safety - basic") {
+TEST_CASE("Gallery thread safety - concurrent adds") {
     Gallery gallery(0.39, 0.32);
 
-    // Add from multiple threads would require std::thread
-    // Just verify basic operations work
-    GalleryEntry entry;
-    entry.template_id = "t1";
-    entry.identity_id = "i1";
-    entry.identity_name = "User 1";
-    entry.eye_side = "left";
-    entry.tmpl = create_test_template(1);
+    constexpr int kThreads = 4;
+    constexpr int kPerThread = 25;
 
-    // Multiple adds
-    for (int i = 0; i < 100; i++) {
-        GalleryEntry e;
-        e.template_id = "t" + std::to_string(i);
-        e.identity_id = "i" + std::to_string(i);
-        e.identity_name = "User " + std::to_string(i);
-        e.eye_side = "left";
-        e.tmpl = create_test_template(i);
-        gallery.add(std::move(e));
+    std::vector<std::thread> threads;
+    threads.reserve(kThreads);
+    for (int t = 0; t < kThreads; ++t) {
+        threads.emplace_back([&gallery, t]() {
+            for (int i = 0; i < kPerThread; ++i) {
+                GalleryEntry e;
+                int idx = t * kPerThread + i;
+                e.template_id = "t" + std::to_string(idx);
+                e.identity_id = "i" + std::to_string(idx);
+                e.identity_name = "User " + std::to_string(idx);
+                e.eye_side = "left";
+                e.tmpl = create_test_template(idx);
+                gallery.add(std::move(e));
+            }
+        });
     }
+    for (auto& th : threads) th.join();
 
-    CHECK(gallery.size() == 100);
+    CHECK(gallery.size() == kThreads * kPerThread);
+}
+
+TEST_CASE("Gallery thread safety - concurrent add and size") {
+    Gallery gallery(0.39, 0.32);
+
+    constexpr int kAdders = 3;
+    constexpr int kReaders = 2;
+    constexpr int kPerAdder = 20;
+
+    std::vector<std::thread> threads;
+    threads.reserve(kAdders + kReaders);
+
+    for (int t = 0; t < kAdders; ++t) {
+        threads.emplace_back([&gallery, t]() {
+            for (int i = 0; i < kPerAdder; ++i) {
+                GalleryEntry e;
+                int idx = t * kPerAdder + i;
+                e.template_id = "t" + std::to_string(idx);
+                e.identity_id = "i" + std::to_string(idx);
+                e.identity_name = "User " + std::to_string(idx);
+                e.eye_side = "left";
+                e.tmpl = create_test_template(idx);
+                gallery.add(std::move(e));
+            }
+        });
+    }
+    for (int t = 0; t < kReaders; ++t) {
+        threads.emplace_back([&gallery]() {
+            // Concurrent reads must not crash
+            for (int i = 0; i < 50; ++i) {
+                (void)gallery.size();
+                (void)gallery.list();
+            }
+        });
+    }
+    for (auto& th : threads) th.join();
+
+    CHECK(gallery.size() == kAdders * kPerAdder);
 }
 
 TEST_CASE("GalleryEntry structure") {

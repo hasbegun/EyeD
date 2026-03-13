@@ -56,6 +56,8 @@ WORKDIR /src
 
 # Copy libiris from additional build context (resolves symlink via docker-compose)
 COPY --from=libiris . libiris/
+# Remove macOS resource fork / AppleDouble files that macOS hosts inject
+RUN find libiris -name '._*' -delete && find libiris -name '__MACOSX' -exec rm -rf {} + 2>/dev/null || true
 
 # Copy service source
 COPY CMakeLists.txt .
@@ -105,6 +107,8 @@ WORKDIR /src
 
 # Copy libiris
 COPY --from=libiris . libiris/
+# Remove macOS resource fork / AppleDouble files that macOS hosts inject
+RUN find libiris -name '._*' -delete && find libiris -name '__MACOSX' -exec rm -rf {} + 2>/dev/null || true
 
 # Copy test source and CMakeLists
 COPY CMakeLists.txt .
@@ -122,4 +126,4 @@ RUN cmake -S . -B build \
 RUN cmake --build build --parallel $(nproc)
 
 # Run tests
-CMD ["cmake", "--build", "build", "--target", "test"]
+CMD ["ctest", "--test-dir", "build", "--output-on-failure", "-V"]

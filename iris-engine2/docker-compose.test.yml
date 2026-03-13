@@ -7,5 +7,5 @@ services:
       target: test
       additional_contexts:
         libiris: ./.libiris
-    command: ["cmake", "--build", "build", "--target", "test"]
+    command: ["ctest", "--test-dir", "build", "--output-on-failure", "-V"]
 

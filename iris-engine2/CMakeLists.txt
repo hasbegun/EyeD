@@ -47,6 +47,8 @@ target_link_libraries(iris-engine2 PRIVATE
 # Relax -Werror inherited from libiris for service code
 target_compile_options(iris-engine2 PRIVATE -Wno-error)
 
-# --- Tests ---
-enable_testing()
-add_subdirectory(tests)
+# --- Tests (only when tests/ directory is present) ---
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tests")
+    enable_testing()
+    add_subdirectory(tests)
+endif()

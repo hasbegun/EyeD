@@ -86,6 +86,7 @@ services:
   iris-engine2:
     build:
       context: ./iris-engine2
+      target: runtime
       additional_contexts:
         libiris: ./iris-engine2/.libiris
     ports:

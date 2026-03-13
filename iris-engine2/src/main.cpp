@@ -99,23 +99,23 @@ int main() {
     if (db.is_connected()) {
 #ifdef IRIS_HAS_FHE
         if (fhe.is_active()) {
-            // FHE mode: load raw blobs and deserialize as encrypted templates
+            // FHE mode: load encrypted blobs, decrypt to plaintext for
+            // in-memory matching (encryption at rest — fast plaintext matching)
             auto raw_templates = db.load_all_raw_templates();
             for (auto& rt : raw_templates) {
+                auto decrypted = fhe.decrypt_template(rt.iris_blob);
+                if (!decrypted) {
+                    std::cerr << "[iris-engine2] WARNING: Failed to decrypt "
+                              << "template " << rt.template_id
+                              << ", skipping" << std::endl;
+                    continue;
+                }
                 GalleryEntry entry;
                 entry.template_id = rt.template_id;
                 entry.identity_id = rt.identity_id;
                 entry.identity_name = rt.identity_name;
                 entry.eye_side = rt.eye_side;
-                entry.is_encrypted = true;
-                entry.encrypted_iris = fhe.deserialize_encrypted(
-                    rt.iris_blob.data(), rt.iris_blob.size());
-                if (entry.encrypted_iris.empty()) {
-                    std::cerr << "[iris-engine2] WARNING: Failed to deserialize "
-                              << "encrypted template " << rt.template_id
-                              << ", skipping" << std::endl;
-                    continue;
-                }
+                entry.tmpl = std::move(*decrypted);
                 gallery.add(std::move(entry));
             }
         } else
@@ -377,58 +377,45 @@ int main() {
         // Generate template ID and persist
         auto template_id = generate_uuid();
 
+        // Persist to DB
+        if (db.is_connected()) {
+            db.ensure_identity(identity_id, identity_name);
 #ifdef IRIS_HAS_FHE
-        if (fhe.is_active()) {
-            // FHE mode: encrypt template before storing
-            auto [iris_blob, mask_blob] = fhe.encrypt_template(*result->iris_template);
-            if (iris_blob.empty() || mask_blob.empty()) {
-                res.set_content(json({
-                    {"identity_id", identity_id}, {"template_id", ""},
-                    {"is_duplicate", false},
-                    {"duplicate_identity_id", nullptr},
-                    {"duplicate_identity_name", nullptr},
-                    {"error", "FHE encryption failed"}
-                }).dump(), "application/json");
-                return;
-            }
-
-            // Persist encrypted blobs to DB
-            if (db.is_connected()) {
-                db.ensure_identity(identity_id, identity_name);
+            if (fhe.is_active()) {
+                // FHE mode: encrypt template for DB storage (encryption at rest)
+                auto [iris_blob, mask_blob] = fhe.encrypt_template(*result->iris_template);
+                if (iris_blob.empty() || mask_blob.empty()) {
+                    res.set_content(json({
+                        {"identity_id", identity_id}, {"template_id", ""},
+                        {"is_duplicate", false},
+                        {"duplicate_identity_id", nullptr},
+                        {"duplicate_identity_name", nullptr},
+                        {"error", "FHE encryption failed"}
+                    }).dump(), "application/json");
+                    return;
+                }
                 db.persist_encrypted_template(
                     template_id, identity_id, eye_side_str,
                     iris_blob, mask_blob,
                     static_cast<int>(result->iris_template->iris_codes.size()),
                     device_id);
+            } else
+#endif
+            {
+                db.persist_template(template_id, identity_id, eye_side_str,
+                                    *result->iris_template, device_id);
             }
+        }
 
-            // Add encrypted entry to in-memory gallery
+        // Add plaintext entry to in-memory gallery (fast matching)
+        {
             GalleryEntry entry;
             entry.template_id = template_id;
             entry.identity_id = identity_id;
             entry.identity_name = identity_name;
             entry.eye_side = eye_side_str;
-            entry.is_encrypted = true;
-            entry.encrypted_iris = fhe.deserialize_encrypted(
-                iris_blob.data(), iris_blob.size());
+            entry.tmpl = *result->iris_template;
             gallery.add(std::move(entry));
-        } else
-#endif
-        {
-            // Plaintext mode: persist and add as before
-            if (db.is_connected()) {
-                db.ensure_identity(identity_id, identity_name);
-                db.persist_template(template_id, identity_id, eye_side_str,
-                                    *result->iris_template, device_id);
-            }
-
-            GalleryEntry pt_entry;
-            pt_entry.template_id = template_id;
-            pt_entry.identity_id = identity_id;
-            pt_entry.identity_name = identity_name;
-            pt_entry.eye_side = eye_side_str;
-            pt_entry.tmpl = *result->iris_template;
-            gallery.add(std::move(pt_entry));
         }
 
         res.set_content(json({

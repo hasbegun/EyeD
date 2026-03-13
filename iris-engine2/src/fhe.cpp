@@ -208,6 +208,41 @@ std::vector<iris::EncryptedTemplate> FHEManager::deserialize_encrypted(
     return result;
 }
 
+std::optional<iris::IrisTemplate> FHEManager::decrypt_template(
+    const std::vector<uint8_t>& iris_blob) const {
+    if (!active_ || iris_blob.empty()) return std::nullopt;
+
+    auto enc_templates = deserialize_encrypted(iris_blob.data(), iris_blob.size());
+    if (enc_templates.empty()) return std::nullopt;
+
+    iris::IrisTemplate tmpl;
+    tmpl.iris_code_version = "v2.0";
+
+    for (auto& et : enc_templates) {
+        auto decrypted = et.decrypt(*ctx_);
+        if (!decrypted) {
+            std::cerr << "[fhe] Failed to decrypt scale " << tmpl.iris_codes.size()
+                      << std::endl;
+            return std::nullopt;
+        }
+
+        // encrypt_template() combined: code_bits from iris_codes, mask_bits from mask_codes
+        // So we split them back: iris_codes gets code_bits, mask_codes gets mask_bits
+        iris::PackedIrisCode iris_code;
+        iris_code.code_bits = decrypted->code_bits;
+        iris_code.mask_bits = decrypted->mask_bits;  // not used for matching, but keep consistent
+
+        iris::PackedIrisCode mask_code;
+        mask_code.code_bits = decrypted->mask_bits;  // the actual mask bits
+        mask_code.mask_bits = {};
+
+        tmpl.iris_codes.push_back(std::move(iris_code));
+        tmpl.mask_codes.push_back(std::move(mask_code));
+    }
+
+    return tmpl;
+}
+
 FHEManager::MatchResult FHEManager::match_probe_vs_encrypted(
     const iris::PackedIrisCode& probe,
     const iris::EncryptedTemplate& gallery) const {

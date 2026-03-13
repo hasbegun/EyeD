@@ -56,6 +56,12 @@ class FHEManager {
         const uint8_t* data, size_t len) const;
 #endif
 
+    /// Decrypt an IrisTemplate from raw DB blobs (iris_blob).
+    /// Deserializes the ciphertext and decrypts each scale back to plaintext.
+    /// Returns nullopt on failure.
+    std::optional<iris::IrisTemplate> decrypt_template(
+        const std::vector<uint8_t>& iris_blob) const;
+
     // --- Matching ---
 
     /// Match a probe IrisTemplate against a single gallery EncryptedTemplate.

@@ -234,6 +234,106 @@ bool Database::persist_template(const std::string& template_id,
     return ok;
 }
 
+// --- Persist encrypted template ---
+
+bool Database::persist_encrypted_template(const std::string& template_id,
+                                          const std::string& identity_id,
+                                          const std::string& eye_side,
+                                          const std::vector<uint8_t>& iris_blob,
+                                          const std::vector<uint8_t>& mask_blob,
+                                          int n_scales,
+                                          const std::string& device_id) {
+    if (!is_connected()) return false;
+
+    int width = 512;   // PackedIrisCode: 256 cols × 2 channels
+    int height = 16;   // PackedIrisCode: 16 rows
+
+    auto w_str = std::to_string(width);
+    auto h_str = std::to_string(height);
+    auto ns_str = std::to_string(n_scales);
+    auto q_str = std::to_string(0.0);
+
+    const char* sql =
+        "INSERT INTO templates "
+        "(template_id, identity_id, eye_side, iris_codes, mask_codes, "
+        " width, height, n_scales, quality_score, device_id) "
+        "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)";
+
+    const char* params[] = {
+        template_id.c_str(), identity_id.c_str(), eye_side.c_str(),
+        reinterpret_cast<const char*>(iris_blob.data()),
+        reinterpret_cast<const char*>(mask_blob.data()),
+        w_str.c_str(), h_str.c_str(), ns_str.c_str(),
+        q_str.c_str(), device_id.c_str()};
+
+    int param_lengths[] = {0, 0, 0,
+                           static_cast<int>(iris_blob.size()),
+                           static_cast<int>(mask_blob.size()),
+                           0, 0, 0, 0, 0};
+    int param_formats[] = {0, 0, 0, 1, 1, 0, 0, 0, 0, 0};
+
+    auto* res = PQexecParams(conn_.get(), sql, 10, nullptr, params,
+                             param_lengths, param_formats, 0);
+    bool ok = PQresultStatus(res) == PGRES_COMMAND_OK;
+    if (!ok) {
+        std::cerr << "[db] persist_encrypted_template failed: "
+                  << PQresultErrorMessage(res) << std::endl;
+    }
+    PQclear(res);
+    return ok;
+}
+
+// --- Load all raw templates (for FHE mode) ---
+
+std::vector<Database::RawTemplate> Database::load_all_raw_templates() {
+    std::vector<RawTemplate> out;
+    if (!is_connected()) return out;
+
+    const char* sql =
+        "SELECT t.template_id, t.identity_id, i.name, t.eye_side, "
+        "       t.iris_codes, t.mask_codes, t.n_scales "
+        "FROM templates t JOIN identities i ON t.identity_id = i.identity_id";
+
+    auto* res = PQexecParams(conn_.get(), sql, 0, nullptr, nullptr,
+                             nullptr, nullptr, 0);
+    if (PQresultStatus(res) != PGRES_TUPLES_OK) {
+        std::cerr << "[db] load_all_raw_templates failed: "
+                  << PQresultErrorMessage(res) << std::endl;
+        PQclear(res);
+        return out;
+    }
+
+    int n = PQntuples(res);
+    for (int row = 0; row < n; ++row) {
+        RawTemplate rt;
+        rt.template_id = PQgetvalue(res, row, 0);
+        rt.identity_id = PQgetvalue(res, row, 1);
+        rt.identity_name = PQgetvalue(res, row, 2) ? PQgetvalue(res, row, 2) : "";
+        rt.eye_side = PQgetvalue(res, row, 3);
+
+        size_t iris_len = 0;
+        auto* iris_data = PQunescapeBytea(
+            reinterpret_cast<const unsigned char*>(PQgetvalue(res, row, 4)), &iris_len);
+        size_t mask_len = 0;
+        auto* mask_data = PQunescapeBytea(
+            reinterpret_cast<const unsigned char*>(PQgetvalue(res, row, 5)), &mask_len);
+
+        rt.iris_blob.assign(iris_data, iris_data + iris_len);
+        rt.mask_blob.assign(mask_data, mask_data + mask_len);
+        rt.n_scales = std::atoi(PQgetvalue(res, row, 6));
+
+        PQfreemem(iris_data);
+        PQfreemem(mask_data);
+
+        out.push_back(std::move(rt));
+    }
+
+    PQclear(res);
+    std::cout << "[db] Loaded " << out.size() << " raw templates from database"
+              << std::endl;
+    return out;
+}
+
 // --- Delete identity ---
 
 int Database::delete_identity(const std::string& identity_id) {

@@ -105,6 +105,8 @@ services:
       EYED_DB_PASSWORD_FILE: /run/secrets/db_password
       EYED_DB_URL: postgresql://__DB_USER__:__DB_PASSWORD__@postgres:5432/__DB_NAME__
       EYED_PIPELINE_CONFIG: /src/libiris/pipeline.yaml
+      EYED_FHE_ENABLED: "true"
+      EYED_HE_KEY_DIR: /keys
       EYED_ALLOW_PLAINTEXT: "true"
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:7000/health/ready | grep -q ready"]

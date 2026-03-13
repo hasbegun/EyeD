@@ -1,5 +1,6 @@
 #include "config.h"
 #include "db.h"
+#include "fhe.h"
 #include "gallery.h"
 
 #include <chrono>
@@ -59,6 +60,28 @@ int main() {
     std::mutex pipeline_mutex;  // Serialize pipeline access (not thread-safe)
     std::cout << "[iris-engine2] Pipeline loaded" << std::endl;
 
+    // --- Initialize FHE ---
+    FHEManager fhe;
+    if (config.fhe_enabled) {
+        std::cout << "[iris-engine2] FHE enabled, initializing..." << std::endl;
+        if (!fhe.initialize(config.he_key_dir)) {
+            if (!config.allow_plaintext) {
+                std::cerr << "[iris-engine2] FATAL: FHE initialization failed "
+                          << "and EYED_ALLOW_PLAINTEXT is not set" << std::endl;
+                return 1;
+            }
+            std::cerr << "[iris-engine2] WARNING: FHE init failed, "
+                      << "falling back to plaintext mode" << std::endl;
+        }
+    } else {
+        std::cout << "[iris-engine2] FHE disabled by configuration" << std::endl;
+        if (!config.allow_plaintext) {
+            std::cerr << "[iris-engine2] FATAL: FHE is disabled but "
+                      << "EYED_ALLOW_PLAINTEXT is not set" << std::endl;
+            return 1;
+        }
+    }
+
     // --- Connect to database ---
     Database db;
     if (!config.db_url.empty()) {
@@ -71,12 +94,44 @@ int main() {
     }
 
     // --- Initialize gallery ---
-    Gallery gallery(config.match_threshold, config.dedup_threshold);
+    Gallery gallery(config.match_threshold, config.dedup_threshold,
+                    fhe.is_active() ? &fhe : nullptr);
     if (db.is_connected()) {
-        auto templates = db.load_all_templates();
-        for (auto& t : templates) {
-            gallery.add({t.template_id, t.identity_id, t.identity_name,
-                         t.eye_side, std::move(t.tmpl)});
+#ifdef IRIS_HAS_FHE
+        if (fhe.is_active()) {
+            // FHE mode: load raw blobs and deserialize as encrypted templates
+            auto raw_templates = db.load_all_raw_templates();
+            for (auto& rt : raw_templates) {
+                GalleryEntry entry;
+                entry.template_id = rt.template_id;
+                entry.identity_id = rt.identity_id;
+                entry.identity_name = rt.identity_name;
+                entry.eye_side = rt.eye_side;
+                entry.is_encrypted = true;
+                entry.encrypted_iris = fhe.deserialize_encrypted(
+                    rt.iris_blob.data(), rt.iris_blob.size());
+                if (entry.encrypted_iris.empty()) {
+                    std::cerr << "[iris-engine2] WARNING: Failed to deserialize "
+                              << "encrypted template " << rt.template_id
+                              << ", skipping" << std::endl;
+                    continue;
+                }
+                gallery.add(std::move(entry));
+            }
+        } else
+#endif
+        {
+            // Plaintext mode
+            auto templates = db.load_all_templates();
+            for (auto& t : templates) {
+                GalleryEntry entry;
+                entry.template_id = t.template_id;
+                entry.identity_id = t.identity_id;
+                entry.identity_name = t.identity_name;
+                entry.eye_side = t.eye_side;
+                entry.tmpl = std::move(t.tmpl);
+                gallery.add(std::move(entry));
+            }
         }
         std::cout << "[iris-engine2] Gallery loaded: " << gallery.size()
                   << " templates" << std::endl;
@@ -101,7 +156,7 @@ int main() {
             {"gallery_size", static_cast<int>(gallery.size())},
             {"db_connected", db.is_connected()},
             {"redis_connected", false},
-            {"he_active", false},
+            {"he_active", fhe.is_active()},
             {"pipeline_pool_size", 1},
             {"pipeline_pool_available", 1},
             {"version", "0.1.0"},
@@ -322,16 +377,59 @@ int main() {
         // Generate template ID and persist
         auto template_id = generate_uuid();
 
-        // Persist to DB
-        if (db.is_connected()) {
-            db.ensure_identity(identity_id, identity_name);
-            db.persist_template(template_id, identity_id, eye_side_str,
-                                *result->iris_template, device_id);
-        }
+#ifdef IRIS_HAS_FHE
+        if (fhe.is_active()) {
+            // FHE mode: encrypt template before storing
+            auto [iris_blob, mask_blob] = fhe.encrypt_template(*result->iris_template);
+            if (iris_blob.empty() || mask_blob.empty()) {
+                res.set_content(json({
+                    {"identity_id", identity_id}, {"template_id", ""},
+                    {"is_duplicate", false},
+                    {"duplicate_identity_id", nullptr},
+                    {"duplicate_identity_name", nullptr},
+                    {"error", "FHE encryption failed"}
+                }).dump(), "application/json");
+                return;
+            }
 
-        // Add to in-memory gallery
-        gallery.add({template_id, identity_id, identity_name, eye_side_str,
-                     *result->iris_template});
+            // Persist encrypted blobs to DB
+            if (db.is_connected()) {
+                db.ensure_identity(identity_id, identity_name);
+                db.persist_encrypted_template(
+                    template_id, identity_id, eye_side_str,
+                    iris_blob, mask_blob,
+                    static_cast<int>(result->iris_template->iris_codes.size()),
+                    device_id);
+            }
+
+            // Add encrypted entry to in-memory gallery
+            GalleryEntry entry;
+            entry.template_id = template_id;
+            entry.identity_id = identity_id;
+            entry.identity_name = identity_name;
+            entry.eye_side = eye_side_str;
+            entry.is_encrypted = true;
+            entry.encrypted_iris = fhe.deserialize_encrypted(
+                iris_blob.data(), iris_blob.size());
+            gallery.add(std::move(entry));
+        } else
+#endif
+        {
+            // Plaintext mode: persist and add as before
+            if (db.is_connected()) {
+                db.ensure_identity(identity_id, identity_name);
+                db.persist_template(template_id, identity_id, eye_side_str,
+                                    *result->iris_template, device_id);
+            }
+
+            GalleryEntry pt_entry;
+            pt_entry.template_id = template_id;
+            pt_entry.identity_id = identity_id;
+            pt_entry.identity_name = identity_name;
+            pt_entry.eye_side = eye_side_str;
+            pt_entry.tmpl = *result->iris_template;
+            gallery.add(std::move(pt_entry));
+        }
 
         res.set_content(json({
             {"identity_id", identity_id},
@@ -393,10 +491,12 @@ int main() {
                 }
 
                 // Render iris code and mask code as PNG → base64
+                // When FHE is active, codes are encrypted — no visualization
                 json iris_code_b64 = nullptr;
                 json mask_code_b64 = nullptr;
+                bool is_encrypted = fhe.is_active();
 
-                if (!row->tmpl.iris_codes.empty()) {
+                if (!is_encrypted && !row->tmpl.iris_codes.empty()) {
                     auto [code_mat, mask_mat] = row->tmpl.iris_codes[0].to_mat();
 
                     // to_mat() returns 0/1 values; scale to 0/255 for visible PNG
@@ -431,6 +531,7 @@ int main() {
                     {"device_id", row->device_id},
                     {"iris_code_b64", iris_code_b64},
                     {"mask_code_b64", mask_code_b64},
+                    {"is_encrypted", is_encrypted},
                 }).dump(), "application/json");
             });
 

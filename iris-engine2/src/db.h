@@ -31,12 +31,22 @@ class Database {
     // Persist a new identity (upsert)
     bool ensure_identity(const std::string& identity_id, const std::string& name);
 
-    // Persist a new template
+    // Persist a new template (plaintext codes)
     bool persist_template(const std::string& template_id,
                           const std::string& identity_id,
                           const std::string& eye_side,
                           const iris::IrisTemplate& tmpl,
                           const std::string& device_id);
+
+    // Persist a new template with pre-encrypted (serialized) code blobs.
+    // The blobs are opaque ciphertext data stored directly in iris_codes/mask_codes.
+    bool persist_encrypted_template(const std::string& template_id,
+                                    const std::string& identity_id,
+                                    const std::string& eye_side,
+                                    const std::vector<uint8_t>& iris_blob,
+                                    const std::vector<uint8_t>& mask_blob,
+                                    int n_scales,
+                                    const std::string& device_id);
 
     // Load a single template by template_id (with identity info and metadata)
     struct TemplateRow {
@@ -65,15 +75,27 @@ class Database {
                    const std::string& device_id,
                    int latency_ms);
 
-  private:
-    struct PGconn_deleter {
-        void operator()(struct pg_conn* conn) const;
-    };
-    std::unique_ptr<struct pg_conn, PGconn_deleter> conn_;
-
     // Serialize/deserialize PackedIrisCodes for BYTEA storage
     static std::vector<uint8_t> serialize_codes(
         const std::vector<iris::PackedIrisCode>& codes);
     static std::vector<iris::PackedIrisCode> deserialize_codes(
         const uint8_t* data, size_t len);
+
+    // Load raw BYTEA blobs for encrypted templates (no deserialization to PackedIrisCode)
+    struct RawTemplate {
+        std::string template_id;
+        std::string identity_id;
+        std::string identity_name;
+        std::string eye_side;
+        std::vector<uint8_t> iris_blob;
+        std::vector<uint8_t> mask_blob;
+        int n_scales = 0;
+    };
+    std::vector<RawTemplate> load_all_raw_templates();
+
+  private:
+    struct PGconn_deleter {
+        void operator()(struct pg_conn* conn) const;
+    };
+    std::unique_ptr<struct pg_conn, PGconn_deleter> conn_;
 };

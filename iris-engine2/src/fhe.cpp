@@ -1,5 +1,6 @@
 #include "fhe.h"
 
+#include <chrono>
 #include <iostream>
 
 #ifdef IRIS_HAS_FHE
@@ -126,6 +127,8 @@ FHEManager::encrypt_template(const iris::IrisTemplate& tmpl) const {
                      reinterpret_cast<const uint8_t*>(&count),
                      reinterpret_cast<const uint8_t*>(&count) + sizeof(count));
 
+    auto t_start = std::chrono::steady_clock::now();
+
     for (size_t s = 0; s < n_scales; ++s) {
         // Combine iris code bits with mask bits for correct HD computation.
         // iris_codes[s].code_bits = iris filter response
@@ -138,12 +141,17 @@ FHEManager::encrypt_template(const iris::IrisTemplate& tmpl) const {
             combined.mask_bits = tmpl.iris_codes[s].mask_bits;
         }
 
+        auto t0 = std::chrono::steady_clock::now();
         auto enc = iris::EncryptedTemplate::encrypt(*ctx_, combined);
+        auto t1 = std::chrono::steady_clock::now();
         if (!enc) {
             std::cerr << "[fhe] Encryption failed for scale " << s << ": "
                       << enc.error().message << std::endl;
             return {{}, {}};
         }
+        std::cerr << "[fhe] encrypt scale " << s << ": "
+                  << std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count()
+                  << " ms" << std::endl;
 
         auto ser = enc->serialize();
         if (!ser) {
@@ -158,6 +166,11 @@ FHEManager::encrypt_template(const iris::IrisTemplate& tmpl) const {
                          reinterpret_cast<const uint8_t*>(&size) + sizeof(size));
         iris_blob.insert(iris_blob.end(), ser->begin(), ser->end());
     }
+
+    auto t_end = std::chrono::steady_clock::now();
+    std::cerr << "[fhe] encrypt_template total: "
+              << std::chrono::duration_cast<std::chrono::milliseconds>(t_end - t_start).count()
+              << " ms (" << n_scales << " scales)" << std::endl;
 
     // mask_codes BYTEA gets a sentinel (empty count=0) since the mask is
     // already inside each EncryptedTemplate's mask_ct.

@@ -98,9 +98,9 @@ int main() {
                     fhe.is_active() ? &fhe : nullptr);
     if (db.is_connected()) {
 #ifdef IRIS_HAS_FHE
-        if (fhe.is_active()) {
-            // FHE mode: load encrypted blobs, decrypt to plaintext for
-            // in-memory matching (encryption at rest — fast plaintext matching)
+        if (fhe.is_active() && !config.allow_plaintext) {
+            // Full FHE mode: load encrypted blobs, decrypt to plaintext
+            // for in-memory matching (encryption at rest)
             auto raw_templates = db.load_all_raw_templates();
             for (auto& rt : raw_templates) {
                 auto decrypted = fhe.decrypt_template(rt.iris_blob);
@@ -121,7 +121,7 @@ int main() {
         } else
 #endif
         {
-            // Plaintext mode
+            // Plaintext mode (also used when allow_plaintext=true)
             auto templates = db.load_all_templates();
             for (auto& t : templates) {
                 GalleryEntry entry;
@@ -381,8 +381,8 @@ int main() {
         if (db.is_connected()) {
             db.ensure_identity(identity_id, identity_name);
 #ifdef IRIS_HAS_FHE
-            if (fhe.is_active()) {
-                // FHE mode: encrypt template for DB storage (encryption at rest)
+            if (fhe.is_active() && !config.allow_plaintext) {
+                // Full FHE mode: encrypt template for DB storage (slow)
                 auto [iris_blob, mask_blob] = fhe.encrypt_template(*result->iris_template);
                 if (iris_blob.empty() || mask_blob.empty()) {
                     res.set_content(json({
@@ -402,6 +402,7 @@ int main() {
             } else
 #endif
             {
+                // Plaintext DB storage (fast path, also used when allow_plaintext=true)
                 db.persist_template(template_id, identity_id, eye_side_str,
                                     *result->iris_template, device_id);
             }

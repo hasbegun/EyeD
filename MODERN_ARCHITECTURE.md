@@ -17,8 +17,8 @@
 │   Qt5 main loop = capture + detect + analyze     │
 │                                                  │
 │   Camera → Haar Cascade → Masek Pipeline → UI    │
-│                  ↑              ↑                 │
-│              ~50ms          ~2 min (eyelid!)      │
+│                  ↑              ↑                │
+│              ~50ms          ~2 min (eyelid!)     │
 │                                                  │
 │   UI freezes during processing                   │
 │   IplImage (deprecated C API)                    │
@@ -82,29 +82,29 @@ A GPU server is good at:
 ```
   CAPTURE DEVICE (RPi)             COMPUTE SERVER (Docker)                      BROWSER
   Headless, no display             Containerized services                       (Any device)
- ┌──────────────────────┐         ┌──────────────────────────────────────┐
- │                      │         │                                      │
- │  ┌──────────┐        │  gRPC   │  ┌──────────────────────────────┐   │
- │  │  Camera   │        │ (mTLS)  │  │       iris-engine (Open-IRIS)         │   │
- │  │  V4L2     │        │         │  │                              │   │     ┌────────────┐
- │  └────┬──────┘        │         │  │  ┌────────┐  ┌───────────┐  │   │     │  Web UI    │
- │       │               │         │  │  │ Segment │  │  Encode   │  │   │     │  (browser) │
- │       ▼               │         │  │  │ (DNN)   │  │ (Gabor)   │  │   │     │            │
- │  ┌──────────┐         │         │  │  │Normalize│  │ Match     │  │   │     │ WebRTC     │
- │  │ Quality  │──frame─▶│ ═══════▶│  │  └────┬────┘  │ (Hamming) │  │   │◀────│ live feed  │
- │  │ Gate     │ (if     │         │  │       │       └─────┬─────┘  │   │     │            │
- │  │ (Sobel)  │ quality │         │  │       ▼             │        │   │     │ Dashboard  │
- │  └──────────┘ passes) │         │  │  ┌────────────┐    │        │   │     │ Results    │
- │       │               │         │  │  │ Full IRIS  │────┘        │   │     │ Enrollment │
- │       ▼               │         │  │  │   Pipeline │             │   │     └────────────┘
- │  ┌──────────┐         │         │  │  └────────────┘             │   │
- │  │ WebRTC   │─stream─▶│ ═══════▶│  └──────────────────────────────┘   │
+ ┌───────────────────────┐         ┌──────────────────────────────────────┐
+ │                       │         │                                      │
+ │  ┌──────────┐         │  gRPC   │  ┌──────────────────────────────┐    │
+ │  │  Camera   │        │ (mTLS)  │  │       iris-engine (Open-IRIS)│    │
+ │  │  V4L2     │        │         │  │                              │    │     ┌────────────┐
+ │  └────┬──────┘        │         │  │  ┌────────┐  ┌───────────┐   │    │     │  Web UI    │
+ │       │               │         │  │  │ Segment │  │  Encode   │  │    │     │  (browser) │
+ │       ▼               │         │  │  │ (DNN)   │  │ (Gabor)   │  │    │     │            │
+ │  ┌──────────┐         │         │  │  │Normalize│  │ Match     │  │    │     │ WebRTC     │
+ │  │ Quality  │──frame─▶│ ═══════▶│  │  └────┬────┘  │ (Hamming) │  │    │◀────│ live feed  │
+ │  │ Gate     │ (if     │         │  │       │       └─────┬─────┘  │    │     │            │
+ │  │ (Sobel)  │ quality │         │  │       ▼             │        │    │     │ Dashboard  │
+ │  └──────────┘ passes) │         │  │  ┌────────────┐     │        │    │     │ Results    │
+ │       │               │         │  │  │ Full IRIS  │─────┘        │    │     │ Enrollment │
+ │       ▼               │         │  │  │   Pipeline │              │    │     └────────────┘
+ │  ┌──────────┐         │         │  │  └────────────┘              │    │
+ │  │ WebRTC   │─stream─▶│ ═══════▶│  └──────────────────────────────┘    │
  │  │ (video)  │         │         │                                      │
- │  └──────────┘         │         │  ┌──────────────────────────────┐   │
- │                       │         │  │       Template Store          │   │
- │                       │         │  │  (enrolled iris templates)    │   │
- │                       │         │  └──────────────────────────────┘   │
- └──────────────────────┘         └──────────────────────────────────────┘
+ │  └──────────┘         │         │  ┌──────────────────────────────┐    │
+ │                       │         │  │       Template Store         │    │
+ │                       │         │  │  (enrolled iris templates)   │    │
+ │                       │         │  └──────────────────────────────┘    │
+ └───────────────────────┘         └──────────────────────────────────────┘
       ~$25-50                            ~$99-500
       ~3W power                          ~10-40W power
       ~32MB RAM used                     ~200MB-1GB RAM used
@@ -244,38 +244,38 @@ The capture device can either run the binary natively (for lowest latency) or as
 All heavy computation runs server-side. The core algorithm is **Open-IRIS** (Worldcoin, MIT license) — the best open-source iris recognition system available, 150x more accurate than our Masek implementation. It runs as a **standalone algorithm service** (Python) that accepts eye images and returns iris codes + match results.
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    COMPUTE SERVER                             │
-│                                                              │
-│  ┌─────────────────┐     ┌──────────────────────────────┐   │
-│  │  Gateway          │     │   Iris Engine (Open-IRIS)     │   │
-│  │  (gRPC + NATS)   │────▶│                              │   │
-│  │                  │     │   Python service (CUDA/CPU)   │   │
-│  │  Accepts frames  │     │   Worker pool (N processes)   │   │
-│  │  from N devices  │     │                              │   │
-│  └─────────────────┘     │  Full pipeline per frame:     │   │
-│                           │                              │   │
-│                           │  1. Image decode (~2ms)      │   │
-│                           │  2. Segmentation (~15ms CUDA / ~100ms CPU) │
-│                           │     MobileNetV2 + UNet++     │   │
-│                           │     4-class mask (IoU 0.94)  │   │
-│                           │  3. Normalization (~5ms)     │   │
-│                           │     Daugman rubber sheet     │   │
-│                           │  4. Encoding (~20ms)         │   │
-│                           │     2D Gabor, >10,000 bits   │   │
-│                           │  5. Matching (~1ms)          │   │
-│                           │     Fractional Hamming dist  │   │
-│                           │                              │   │
-│                           │  Total: ~43ms per frame      │   │
-│                           └──────────────────────────────┘   │
-│                                                              │
-│  ┌──────────────────────────────────────────────────────┐   │
-│  │  Template Store                                       │   │
-│  │  - Enrolled iris templates (in-memory for speed)      │   │
-│  │  - PostgreSQL / SQLite for persistence                │   │
-│  │  - One-to-many matching support                       │   │
-│  └──────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    COMPUTE SERVER                                           │
+│                                                                             │
+│  ┌──────────────────┐     ┌─────────────────────────────────────────────┐   │
+│  │  Gateway         │     │   Iris Engine (Open-IRIS)                   │   │
+│  │  (gRPC + NATS)   │────▶│                                             │   │
+│  │                  │     │   Python service (CUDA/CPU)                 │   │
+│  │  Accepts frames  │     │   Worker pool (N processes)                 │   │
+│  │  from N devices  │     │                                             │   │
+│  └──────────────────┘     │  Full pipeline per frame:                   │   │
+│                           │                                             │   │
+│                           │  1. Image decode (~2ms)                     │   │
+│                           │  2. Segmentation (~15ms CUDA / ~100ms CPU)  │   │
+│                           │     MobileNetV2 + UNet++                    │   │
+│                           │     4-class mask (IoU 0.94)                 │   │
+│                           │  3. Normalization (~5ms)                    │   │
+│                           │     Daugman rubber sheet                    │   │
+│                           │  4. Encoding (~20ms)                        │   │
+│                           │     2D Gabor, >10,000 bits                  │   │
+│                           │  5. Matching (~1ms)                         │   │
+│                           │     Fractional Hamming dist                 │   │
+│                           │                                             │   │
+│                           │  Total: ~43ms per frame                     │   │
+│                           └─────────────────────────────────────────────┘   │
+│                                                                             │
+│  ┌─────────────────────────────────────────────────────────────────────┐    │
+│  │  Template Store                                                     │    │
+│  │  - Enrolled iris templates (in-memory for speed)                    │    │
+│  │  - PostgreSQL / SQLite for persistence                              │    │
+│  │  - One-to-many matching support                                     │    │
+│  └─────────────────────────────────────────────────────────────────────┘    │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ### Server Analysis Pipeline (Open-IRIS)
@@ -284,8 +284,8 @@ All heavy computation runs server-side. The core algorithm is **Open-IRIS** (Wor
 Incoming JPEG
     │
     ▼
-┌─────────────────────────────────────────────────────────────┐
-│  Open-IRIS Segmentation (MobileNetV2 + UNet++ with scSE)    │
+┌──────────────────────────────────────────────────────────────┐
+│  Open-IRIS Segmentation (MobileNetV2 + UNet++ with scSE)     │
 │  Input: eye image (any size, auto-resized)                   │
 │  Output: 4-class pixel mask                                  │
 │    Class 0: Eyeball (sclera, skin)                           │
@@ -299,33 +299,33 @@ Incoming JPEG
 │   - Pupil circle: ellipse fit on pupil pixels                │
 │   - Iris circle: ellipse fit on iris pixels                  │
 │   - Noise mask: eyelash/occlusion pixels                     │
-└────────────────┬────────────────────────────────────────────┘
+└────────────────┬─────────────────────────────────────────────┘
                  │
                  ▼
-┌─────────────────────────────────────────────────────────────┐
+┌──────────────────────────────────────────────────────────────┐
 │  Open-IRIS Normalization (Daugman rubber sheet)              │
 │  Same mathematical model as Masek, better implementation     │
 │  Polar unwrap: circular iris → normalized rectangular strip  │
 │  ~5ms (CPU)                                                  │
-└────────────────┬────────────────────────────────────────────┘
+└────────────────┬─────────────────────────────────────────────┘
                  │
                  ▼
-┌─────────────────────────────────────────────────────────────┐
+┌──────────────────────────────────────────────────────────────┐
 │  Open-IRIS Encoding (2D Gabor filters)                       │
 │  Multiple scales, >10,000 bit iris code                      │
 │  vs Masek's 1 scale, ~2,048 bits                             │
 │  ~20ms (CPU)                                                 │
-└────────────────┬────────────────────────────────────────────┘
+└────────────────┬─────────────────────────────────────────────┘
                  │
                  ▼
-┌─────────────────────────────────────────────────────────────┐
+┌──────────────────────────────────────────────────────────────┐
 │  Open-IRIS Matching (Masked fractional Hamming distance)     │
 │  Compare against enrolled template(s)                        │
 │  Rotation-compensated, noise-mask-aware                      │
 │  ~1ms per comparison (CPU)                                   │
 │                                                              │
-│  FNMR < 0.12% @ FMR = 0.001 (150x better than Masek)       │
-└─────────────────────────────────────────────────────────────┘
+│  FNMR < 0.12% @ FMR = 0.001 (150x better than Masek)         │
+└──────────────────────────────────────────────────────────────┘
 ```
 
 ### Why Open-IRIS replaces Masek entirely
@@ -418,38 +418,38 @@ The monolithic "compute server" from section 5 splits into independent container
 ### Service Decomposition
 
 ```
-┌──────────────────────────────────────────────────────────────────────────────────────┐
-│                                                                                      │
-│  EDGE (RPi)              ON-PREM / CLOUD (Containers)                    BROWSER    │
-│  Headless                                                                            │
-│  ┌───────────┐           ┌─────────────┐                                            │
-│  │  capture   │──frame──▶│  gateway     │     ┌──────────────────┐                  │
-│  │  device    │           │  (routing +  │────▶│  iris-engine     │                  │
-│  │  (no UI)  │◀──ack────│   signaling) │     │  (Open-IRIS)     │  ┌────────────┐ │
-│  └─────┬─────┘           └──────┬───────┘     │                  │  │            │ │
-│        │                        │              │  segment →       │  │  web-ui    │ │
-│        │ WebRTC                 │              │  normalize →     │  │  (SPA)     │ │
-│        │ (video stream)         │              │  encode →        │  │            │ │
-│        │                        │              │  match           │  │ ◀─WebSocket─┤ │
-│        │                        │              │                  │  │   results   │ │
-│        │                        │              │  Python service  │  │            │ │
-│        │                        │              │  GPU-accelerated │  │ ◀─WebRTC───┤ │
-│        └────────────────────────┼── relay ─────┘──────┬───────────┘  │   video    │ │
-│                                 │                     │              └────────────┘ │
-│                                 │               ┌─────┴─────┐                       │
-│                                 │               ▼           ▼                        │
-│                                 │      ┌───────────┐ ┌───────────┐                  │
-│                                 │      │ template- │ │ storage   │                  │
-│                                 │      │ db        │ │ (archive) │                  │
-│                                 │      └─────┬─────┘ └─────┬─────┘                  │
+┌───────────────────────────────────────────────────────────────────────────────────────┐
+│                                                                                       │
+│  EDGE (RPi)              ON-PREM / CLOUD (Containers)                    BROWSER      │
+│  Headless                                                                             │
+│  ┌────────────┐           ┌──────────────┐                                            │
+│  │  capture   │──frame──▶ │  gateway     │     ┌──────────────────┐                   │
+│  │  device    │           │  (routing +  │────▶│  iris-engine     │                   │
+│  │  (no UI)   │◀──ack──── │   signaling) │     │  (Open-IRIS)     │  ┌─────────────┐  │
+│  └─────┬──────┘           └──────┬───────┘     │                  │  │             │  │
+│        │                        │              │  segment →       │  │  web-ui     │  │
+│        │ WebRTC                 │              │  normalize →     │  │  (SPA)      │  │
+│        │ (video stream)         │              │  encode →        │  │             │  │
+│        │                        │              │  match           │  │ ◀─WebSocket─┤  │
+│        │                        │              │                  │  │   results   │  │
+│        │                        │              │  Python service  │  │             │  │
+│        │                        │              │  GPU-accelerated │  │ ◀─WebRTC────┤  │
+│        └────────────────────────┼── relay ─────┘──────┬───────────┘  │   video     │  │
+│                                 │                     │              └─────────────┘  │
+│                                 │               ┌─────┴─────┐                         │
+│                                 │               ▼           ▼                         │
+│                                 │      ┌───────────┐ ┌───────────┐                    │
+│                                 │      │ template- │ │ storage   │                    │
+│                                 │      │ db        │ │ (archive) │                    │
+│                                 │      └─────┬─────┘ └─────┬─────┘                    │
 │                                 │            │             │                          │
 │                                 │            ▼             ▼                          │
-│                                 │      ┌──────────────────────┐                     │
-│                                 │      │    object-store      │                     │
-│                                 │      │  (raw images, blobs) │                     │
-│                                 │      └──────────────────────┘                     │
+│                                 │      ┌──────────────────────┐                       │
+│                                 │      │    object-store      │                       │
+│                                 │      │  (raw images, blobs) │                       │
+│                                 │      └──────────────────────┘                       │
 │                                 │                                                     │
-└──────────────────────────────────────────────────────────────────────────────────────┘
+└───────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ### The 6 Services
@@ -1017,43 +1017,43 @@ The entire Masek pipeline is **replaced** by Open-IRIS (Worldcoin, MIT license).
 Input: eye image (any size)
   │
   ▼
-┌──────────────────────────────────────────────────────────────┐
-│  Segmentation (MobileNetV2 + UNet++ with scSE attention)     │
-│                                                              │
+┌─────────────────────────────────────────────────────────────────────┐
+│  Segmentation (MobileNetV2 + UNet++ with scSE attention)            │
+│                                                                     │
 │  Pretrained model: HuggingFace Worldcoin/iris-semantic-segmentation │
-│  4 classes: eyeball, iris, pupil, eyelashes                  │
-│  IoU: 0.943                                                  │
-│  ~15ms (GPU) / ~100ms (CPU)                                  │
-│                                                              │
-│  Outputs:                                                    │
-│   - Iris/pupil boundaries (ellipse fit from mask)            │
-│   - Noise mask (eyelash + occlusion pixels)                  │
-│   - Segmentation confidence                                  │
-└────────────────┬─────────────────────────────────────────────┘
+│  4 classes: eyeball, iris, pupil, eyelashes                         │
+│  IoU: 0.943                                                         │
+│  ~15ms (GPU) / ~100ms (CPU)                                         │
+│                                                                     │
+│  Outputs:                                                           │
+│   - Iris/pupil boundaries (ellipse fit from mask)                   │
+│   - Noise mask (eyelash + occlusion pixels)                         │
+│   - Segmentation confidence                                         │
+└────────────────┬────────────────────────────────────────────────────┘
                  │
                  ▼
-┌──────────────────────────────────────────────────────────────┐
+┌───────────────────────────────────────────────────────────────┐
 │  Normalization (Daugman rubber sheet model)                   │
-│  Same math as Masek, better implementation                   │
+│  Same math as Masek, better implementation                    │
 │  Polar unwrap: iris annulus → normalized rectangular strip    │
-│  ~5ms (CPU)                                                  │
-└────────────────┬─────────────────────────────────────────────┘
+│  ~5ms (CPU)                                                   │
+└────────────────┬──────────────────────────────────────────────┘
                  │
                  ▼
-┌──────────────────────────────────────────────────────────────┐
+┌───────────────────────────────────────────────────────────────┐
 │  Encoding (2D Gabor filter bank)                              │
 │  Multiple spatial scales and orientations                     │
 │  Output: >10,000 bit binary iris code + noise mask            │
 │  ~20ms (CPU)                                                  │
-└────────────────┬─────────────────────────────────────────────┘
+└────────────────┬──────────────────────────────────────────────┘
                  │
                  ▼
-┌──────────────────────────────────────────────────────────────┐
+┌───────────────────────────────────────────────────────────────┐
 │  Matching (Masked fractional Hamming distance)                │
-│  Rotation-compensated, noise-mask-aware                      │
-│  Score: 0.0 (identical) to 0.5 (uncorrelated)               │
+│  Rotation-compensated, noise-mask-aware                       │
+│  Score: 0.0 (identical) to 0.5 (uncorrelated)                 │
 │  ~1ms per comparison                                          │
-└──────────────────────────────────────────────────────────────┘
+└───────────────────────────────────────────────────────────────┘
 ```
 
 ### Open-IRIS 1.11.0 Features (vs 1.9)
@@ -1180,7 +1180,7 @@ The pipeline produces data at every stage. Storage is split by **access pattern*
 Frame arrives from capture device
     │
     ▼
-┌─────────────┐   raw image + metadata
+┌──────────────┐   raw image + metadata
 │  storage     │──────────────────────────────▶ OBJECT STORE (cold)
 │  service     │                                 /raw/{date}/{device}/{frame_id}.jpg
 │              │                                 /raw/{date}/{device}/{frame_id}.meta.json
@@ -1197,7 +1197,7 @@ Frame arrives from capture device
 │              │   match log entry
 │              │──────────────────────────────▶ TEMPLATE DB (hot)
 │              │                                 match_log table
-└─────────────┘
+└──────────────┘
 ```
 
 ### Storage Tiers
@@ -1531,26 +1531,26 @@ Raw images accumulate over time. Periodically export curated datasets for retrai
                     (months of data)
                           │
                           ▼
-┌─────────────────────────────────────────────────┐
+┌───────────────────────────────────────────────────────┐
 │  Training Export Script (scripts/export_training.py)  │
 │                                                       │
-│  1. Query match_log for frames with:                 │
-│     - High confidence segmentation (>0.9)            │
-│     - Verified matches (human-reviewed)              │
-│     - Diverse devices and lighting conditions        │
+│  1. Query match_log for frames with:                  │
+│     - High confidence segmentation (>0.9)             │
+│     - Verified matches (human-reviewed)               │
+│     - Diverse devices and lighting conditions         │
 │                                                       │
-│  2. Fetch raw images + segmentation masks            │
-│     from object-store                                │
+│  2. Fetch raw images + segmentation masks             │
+│     from object-store                                 │
 │                                                       │
-│  3. Optionally: human review in CVAT/Label Studio    │
-│     to correct segmentation masks                    │
+│  3. Optionally: human review in CVAT/Label Studio     │
+│     to correct segmentation masks                     │
 │                                                       │
 │  4. Export as training dataset:                       │
-│     training-export/{export_id}/                     │
-│     ├── manifest.json                                │
-│     ├── images/  (eye crops, normalized)             │
-│     └── masks/   (ground truth segmentation)         │
-└─────────────────────────────────────────────────────┘
+│     training-export/{export_id}/                      │
+│     ├── manifest.json                                 │
+│     ├── images/  (eye crops, normalized)              │
+│     └── masks/   (ground truth segmentation)          │
+└───────────────────────────────────────────────────────┘
                           │
                           ▼
             Fine-tune Open-IRIS segmentation model
@@ -1626,11 +1626,11 @@ Iris biometric data is **sensitive PII**. A leaked iris template can't be rotate
 All network paths are encrypted. No plaintext biometric data ever crosses a wire.
 
 ```
-CAPTURE DEVICE ═══mTLS (gRPC)═══▶ GATEWAY ═══TLS (NATS)═══▶ SERVICES
-     │                                │                           │
-     │  Client cert per device        │  NATS TLS required        │  Service mesh TLS
+CAPTURE DEVICE ═══mTLS (gRPC)═══▶ GATEWAY ═══TLS (NATS)═════▶ SERVICES
+     │                                │                            │
+     │  Client cert per device        │  NATS TLS required         │  Service mesh TLS
      │  Server cert on gateway        │  No anonymous connections  │  (Kubernetes mTLS)
-     │  TLS 1.3 minimum              │  JWT auth per service      │
+     │  TLS 1.3 minimum               │  JWT auth per service      │
 ```
 
 **Edge communication (capture device → gateway): mTLS over gRPC**
@@ -1821,24 +1821,24 @@ Root Key (HSM / Vault - never leaves secure boundary)
 ┌────────────────────────────────────────────────────────────────────┐
 │                         SECURITY LAYERS                            │
 │                                                                    │
-│   RPi ══mTLS══▶ Gateway ══TLS/NATS══▶ Services                   │
+│   RPi ══mTLS══▶ Gateway ══TLS/NATS══▶ Services                     │
 │   │              │                      │                          │
 │   │ device cert  │ validates device     │ JWT scoped per service   │
 │   │ HMAC frames  │ anti-replay check    │ subject-level ACL        │
-│   │              │ rate limiting         │                          │
+│   │              │ rate limiting         │                         │
 │   │              │                      │                          │
 │   │              ▼                      ▼                          │
 │   │         Template DB            Object Store (future)           │
-│   │         ├── OpenFHE BFV (tgt) ├── SSE (server-side enc)      │
-│   │         ├── AES-GCM (interim) ├── LUKS disk encryption        │
-│   │         └── key-service (tgt) └── Client-side enc (optional)  │
+│   │         ├── OpenFHE BFV (tgt) ├── SSE (server-side enc)        │
+│   │         ├── AES-GCM (interim) ├── LUKS disk encryption         │
+│   │         └── key-service (tgt) └── Client-side enc (optional)   │
 │   │                                                                │
 │   │         Audit Trail                                            │
-│   │         ├── All match attempts logged                         │
-│   │         ├── All enrollment/deletion logged                    │
-│   │         └── Tamper-evident (HMAC per log entry)               │
+│   │         ├── All match attempts logged                          │
+│   │         ├── All enrollment/deletion logged                     │
+│   │         └── Tamper-evident (HMAC per log entry)                │
 │   │                                                                │
-│   └─────── All keys in Vault / HSM (production)                   │
+│   └─────── All keys in Vault / HSM (production)                    │
 │            or encrypted config (edge)                              │
 └────────────────────────────────────────────────────────────────────┘
 ```

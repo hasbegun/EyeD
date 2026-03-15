@@ -86,6 +86,8 @@ class _IndividualTabState extends ConsumerState<IndividualTab>
     final identityId = const Uuid().v4();
     final messages = <String>[];
 
+    bool? isEncrypted;
+
     try {
       // Enroll left eye
       if (_leftBytes != null && !_leftNA) {
@@ -99,6 +101,8 @@ class _IndividualTabState extends ConsumerState<IndividualTab>
           messages.add('L: ${resp.error}');
         } else if (resp.isDuplicate) {
           messages.add('L: dup (${resp.duplicateIdentityName ?? "?"})');
+        } else {
+          isEncrypted = resp.isEncrypted;
         }
       }
 
@@ -114,6 +118,8 @@ class _IndividualTabState extends ConsumerState<IndividualTab>
           messages.add('R: ${resp.error}');
         } else if (resp.isDuplicate) {
           messages.add('R: dup (${resp.duplicateIdentityName ?? "?"})');
+        } else {
+          isEncrypted ??= resp.isEncrypted;
         }
       }
 
@@ -124,9 +130,15 @@ class _IndividualTabState extends ConsumerState<IndividualTab>
       final l = AppLocalizations.of(context);
 
       if (messages.isEmpty) {
+        // Show encryption status in success message
+        final successMsg = isEncrypted == true
+            ? l.enrollSuccessEncrypted
+            : isEncrypted == false
+                ? l.enrollSuccessPlain
+                : l.enrollSuccess;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(l.enrollSuccess),
+            content: Text(successMsg),
             backgroundColor: Colors.green,
           ),
         );

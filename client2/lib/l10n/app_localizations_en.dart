@@ -54,6 +54,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get enrollSuccess => 'Enrolled successfully';
 
   @override
+  String get enrollSuccessEncrypted => 'Enrolled — template encrypted 🔒';
+
+  @override
+  String get enrollSuccessPlain => 'Enrolled — template plaintext';
+
+  @override
   String enrollDuplicate(String name) {
     return 'Duplicate: matches $name';
   }
@@ -122,6 +128,16 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get maskCode => 'Mask Code';
+
+  @override
+  String get templateEncrypted => 'Encrypted (FHE)';
+
+  @override
+  String get templatePlaintext => 'Plaintext';
+
+  @override
+  String get encryptedNoPreview =>
+      'Template is FHE-encrypted — iris code not available for preview';
 
   @override
   String get deleteIdentity => 'Delete';

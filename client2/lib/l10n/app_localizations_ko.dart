@@ -54,6 +54,12 @@ class AppLocalizationsKo extends AppLocalizations {
   String get enrollSuccess => '등록 완료';
 
   @override
+  String get enrollSuccessEncrypted => '등록 완료 — 템플릿 암호화됨 🔒';
+
+  @override
+  String get enrollSuccessPlain => '등록 완료 — 템플릿 평문';
+
+  @override
   String enrollDuplicate(String name) {
     return '중복: $name과(와) 일치';
   }
@@ -122,6 +128,15 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get maskCode => '마스크 코드';
+
+  @override
+  String get templateEncrypted => '암호화됨 (FHE)';
+
+  @override
+  String get templatePlaintext => '평문';
+
+  @override
+  String get encryptedNoPreview => 'FHE 암호화된 템플릿 — 미리보기 불가';
 
   @override
   String get deleteIdentity => '삭제';

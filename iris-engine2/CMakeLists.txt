@@ -32,6 +32,10 @@ add_executable(iris-engine2
     src/db.cpp
     src/fhe.cpp
     src/gallery.cpp
+    src/routes_health.cpp
+    src/routes_analyze.cpp
+    src/routes_enroll.cpp
+    src/routes_gallery.cpp
 )
 
 target_include_directories(iris-engine2 PRIVATE

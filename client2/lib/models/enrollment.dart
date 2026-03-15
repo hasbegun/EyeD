@@ -5,6 +5,7 @@ class EnrollResponse {
   final String? duplicateIdentityId;
   final String? duplicateIdentityName;
   final String? error;
+  final bool isEncrypted;
 
   const EnrollResponse({
     required this.identityId,
@@ -13,6 +14,7 @@ class EnrollResponse {
     this.duplicateIdentityId,
     this.duplicateIdentityName,
     this.error,
+    this.isEncrypted = false,
   });
 
   factory EnrollResponse.fromJson(Map<String, dynamic> json) => EnrollResponse(
@@ -22,6 +24,7 @@ class EnrollResponse {
         duplicateIdentityId: json['duplicate_identity_id'] as String?,
         duplicateIdentityName: json['duplicate_identity_name'] as String?,
         error: json['error'] as String?,
+        isEncrypted: json['is_encrypted'] as bool? ?? false,
       );
 }
 
@@ -71,6 +74,7 @@ class TemplateDetail {
   final String deviceId;
   final String? irisCodeB64;
   final String? maskCodeB64;
+  final bool isEncrypted;
 
   const TemplateDetail({
     required this.templateId,
@@ -84,6 +88,7 @@ class TemplateDetail {
     required this.deviceId,
     this.irisCodeB64,
     this.maskCodeB64,
+    this.isEncrypted = false,
   });
 
   factory TemplateDetail.fromJson(Map<String, dynamic> json) => TemplateDetail(
@@ -98,5 +103,6 @@ class TemplateDetail {
         deviceId: json['device_id'] as String? ?? '',
         irisCodeB64: json['iris_code_b64'] as String?,
         maskCodeB64: json['mask_code_b64'] as String?,
+        isEncrypted: json['is_encrypted'] as bool? ?? false,
       );
 }

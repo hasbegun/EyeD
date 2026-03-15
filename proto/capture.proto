@@ -6,8 +6,6 @@ syntax = "proto3";
 
 package eyed;
 
-option go_package = "github.com/hasbegun/eyed/gateway/proto";
-
 service CaptureService {
     // Single frame analysis
     rpc SubmitFrame(CaptureFrame) returns (FrameAck);

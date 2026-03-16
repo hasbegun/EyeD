@@ -1,4 +1,4 @@
-.PHONY: up down dev build build-gateway build-capture build-client build-storage rebuild logs health ready test test-fnmr test-fnmr-mmu2 test-bench shell status clean nuke ps gallery webcam webcam-macos webcam-relay build-tools dev-client dev-client-macos build-client-web build-client-macos dev-client2 dev-client2-macos build-client2-web build-client2-macos db-shell db-reset db-clean export-training download-models build-iris2 test-iris2 test-iris-engine2-container clean-iris2
+.PHONY: up down dev build build-gateway build-capture build-client build-storage rebuild logs health ready test test-fnmr test-fnmr-mmu2 test-bench shell status clean nuke ps gallery webcam webcam-macos webcam-relay build-tools dev-client2 dev-client2-macos build-client2-web build-client2-macos db-shell db-reset db-clean export-training download-models build-iris2 test-iris2 test-iris-engine2-container clean-iris2
 
 # --- Core ---
 
@@ -131,23 +131,6 @@ build-tools:        ## Build native tools (webcam-relay)
 # --- Flutter Client ---
 
 FLUTTER := fvm flutter
-
-dev-client:         ## Start Flutter client (web, Chrome)
-	cd client && $(FLUTTER) run -d chrome
-
-dev-client-macos:   ## Start Flutter client (macOS native)
-	cd client && $(FLUTTER) run -d macos
-
-dev-client-macos-clean:   ## Start Flutter clean client (macOS native)
-	cd client && $(FLUTTER) clean && $(FLUTTER) run -d macos
-
-build-client-web:   ## Build Flutter client for web
-	cd client && $(FLUTTER) build web --release
-
-build-client-macos: ## Build Flutter client for macOS
-	cd client && $(FLUTTER) build macos --release
-
-# --- Flutter Client2 ---
 
 dev-client2:        ## Start Flutter client2 (web, Chrome)
 	cd client2 && $(FLUTTER) run -d chrome

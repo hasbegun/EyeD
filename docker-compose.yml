@@ -174,14 +174,14 @@ services:
       EYED_ARCHIVE_ROOT: /data/archive
       EYED_LOG_LEVEL: info
 
-  # client:
-  #   build:
-  #     context: ./client
-  #   ports:
-  #     - "9505:80"
-  #   depends_on:
-  #     - gateway
-  #     - iris-engine
+  client2:
+    build:
+      context: ./client2
+    ports:
+      - "9505:80"
+    depends_on:
+      - gateway
+      - iris-engine2
 
   integration-test:
     build:

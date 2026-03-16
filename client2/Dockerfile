@@ -9,8 +9,10 @@ RUN flutter pub get
 
 # Copy source and build
 COPY . .
-RUN dart run build_runner build --delete-conflicting-outputs
-RUN flutter build web --release --dart-define=API_MODE=proxy
+RUN dart pub add build_runner && \
+    dart run build_runner build --delete-conflicting-outputs
+RUN flutter clean && \
+    flutter build web --release --dart-define=API_MODE=proxy
 
 # ---- Stage 2: Serve with nginx ----
 FROM nginx:stable-alpine

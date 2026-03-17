@@ -48,22 +48,22 @@ RUN ARCH=$(dpkg --print-architecture) && \
 ENV ONNXRUNTIME_ROOT=/opt/onnxruntime
 
 # =============================================================================
-# Stage 1b: openfhe — build OpenFHE from source
+# Stage 1b: openfhe — build OpenFHE from vendored source
 # =============================================================================
 FROM base-deps AS openfhe
 
-ARG OPENFHE_VERSION=v1.4.2
+# Copy OpenFHE from vendored 3rd-party directory
+# Build context is project root (.), so 3rd-party is accessible
+COPY ./3rd-party/openfhe-development /tmp/openfhe
 
-RUN git clone --depth 1 --branch ${OPENFHE_VERSION} \
-    https://github.com/openfheorg/openfhe-development.git /tmp/openfhe && \
-    cmake -S /tmp/openfhe -B /tmp/openfhe/build \
+RUN cmake -S /tmp/openfhe -B /tmp/openfhe/build \
         -G Ninja \
         -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_INSTALL_PREFIX=/opt/openfhe \
         -DBUILD_STATIC=ON \
         -DBUILD_SHARED=OFF \
         -DWITH_BE2=ON \
-        -DWITH_BE4=OFF \
+        -DWITH_BE4=ON \
         -DWITH_NTL=OFF \
         -DBUILD_UNITTESTS=OFF \
         -DBUILD_EXAMPLES=OFF \
@@ -87,9 +87,9 @@ WORKDIR /src
 # Copy libiris from additional build context (resolves symlink via docker-compose)
 COPY --from=libiris . libiris/
 
-# Copy service source
-COPY CMakeLists.txt .
-COPY src/ src/
+# Copy service source (from iris-engine2/ subdirectory since context is project root)
+COPY iris-engine2/CMakeLists.txt .
+COPY iris-engine2/src/ src/
 
 # Configure (FHE enabled via CMakeLists.txt: IRIS_ENABLE_FHE=ON)
 RUN cmake -S . -B build \
@@ -143,10 +143,10 @@ WORKDIR /src
 # Copy libiris
 COPY --from=libiris . libiris/
 
-# Copy test source and CMakeLists
-COPY CMakeLists.txt .
-COPY src/ src/
-COPY tests/ tests/
+# Copy test source and CMakeLists (from iris-engine2/ subdirectory since context is project root)
+COPY iris-engine2/CMakeLists.txt .
+COPY iris-engine2/src/ src/
+COPY iris-engine2/tests/ tests/
 
 # Configure with tests enabled (FHE enabled via CMakeLists.txt)
 RUN cmake -S . -B build \

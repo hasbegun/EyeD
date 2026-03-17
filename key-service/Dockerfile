@@ -8,16 +8,19 @@ FROM ubuntu:22.04 AS builder
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    cmake g++ make git ca-certificates \
+RUN rm -rf /var/lib/apt/lists/* && \
+    apt-get clean && \
+    (apt-get update -o Acquire::Check-Valid-Until=false -o Acquire::Retries=3 || \
+     apt-get update -o Acquire::Check-Valid-Until=false -o Acquire::Retries=3) && \
+    apt-get install -y --no-install-recommends -o Acquire::Retries=3 \
+    cmake g++ make \
     libssl-dev libomp-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Build OpenFHE C++ library
-ARG OPENFHE_VERSION=v1.4.2
-RUN git clone --depth 1 --branch ${OPENFHE_VERSION} \
-        https://github.com/openfheorg/openfhe-development.git /tmp/openfhe && \
-    cd /tmp/openfhe && mkdir build && cd build && \
+# Build OpenFHE C++ library from vendored source
+# Build context is project root (.), so 3rd-party is accessible
+COPY ./3rd-party/openfhe-development /tmp/openfhe
+RUN cd /tmp/openfhe && mkdir build && cd build && \
     cmake .. \
         -DCMAKE_INSTALL_PREFIX=/usr/local \
         -DCMAKE_BUILD_TYPE=Release \

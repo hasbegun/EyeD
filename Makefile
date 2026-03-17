@@ -32,8 +32,8 @@ build-storage:     ## Build storage service image
 rebuild:           ## Rebuild all without cache
 	docker compose build --no-cache
 
-restart:           ## Restart iris-engine
-	docker compose restart iris-engine
+restart:           ## Restart iris-engine2
+	docker compose restart iris-engine2
 
 # --- Status ---
 
@@ -41,18 +41,17 @@ ps:                ## Show running containers
 	docker compose ps
 
 health:            ## Liveness check (all services)
-	@echo "--- iris-engine ---" && curl -s http://localhost:9500/health/alive | python3 -m json.tool
-	@echo "--- iris-engine2 ---" && curl -s http://localhost:9510/health/alive | python3 -m json.tool 2>/dev/null || echo '  (not running)'
+	@echo "--- iris-engine2 ---" && curl -s http://localhost:9510/health/alive | python3 -m json.tool
 	@echo "--- gateway ---" && curl -s http://localhost:9504/health/alive | python3 -m json.tool
 	@echo "--- storage ---" && curl -s http://localhost:9507/health/alive | python3 -m json.tool 2>/dev/null || echo '  (not running)'
 
 ready:             ## Readiness check (all services)
-	@echo "--- iris-engine ---" && curl -s http://localhost:9500/health/ready | python3 -m json.tool
+	@echo "--- iris-engine2 ---" && curl -s http://localhost:9510/health/ready | python3 -m json.tool
 	@echo "--- gateway ---" && curl -s http://localhost:9504/health/ready | python3 -m json.tool
 	@echo "--- storage ---" && curl -s http://localhost:9507/health/ready | python3 -m json.tool 2>/dev/null || echo '  (not running)'
 
 gallery:           ## Show gallery size
-	@curl -s http://localhost:9500/gallery/size | python3 -m json.tool
+	@curl -s http://localhost:9510/gallery/size | python3 -m json.tool
 
 nats-info:         ## NATS server info
 	@curl -s http://localhost:9501/varz | python3 -m json.tool
@@ -70,8 +69,8 @@ status: ps health ready gallery  ## Full status overview
 logs:              ## Follow all logs
 	docker compose logs -f
 
-logs-engine:       ## Follow iris-engine logs
-	docker compose logs -f iris-engine
+logs-engine:       ## Follow iris-engine2 logs
+	docker compose logs -f iris-engine2
 
 logs-nats:         ## Follow NATS logs
 	docker compose logs -f nats
@@ -87,8 +86,8 @@ logs-storage:      ## Follow storage service logs
 
 # --- Testing ---
 
-test:              ## Run all tests inside container
-	docker compose exec iris-engine pytest tests/ -v
+test:              ## Run iris-engine2 unit tests in container
+	docker compose exec iris-engine2 /app/build/tests/iris_tests
 
 test-integration:  ## Run end-to-end integration test (gateway → NATS → iris-engine)
 	@docker compose stop capture-device 2>/dev/null || true
@@ -96,17 +95,8 @@ test-integration:  ## Run end-to-end integration test (gateway → NATS → iris
 	docker compose run --rm integration-test
 	@docker compose start capture-device 2>/dev/null || true
 
-test-fnmr:         ## Run FNMR accuracy test on CASIA1 dataset
-	docker compose -f docker-compose.yml -f docker-compose.dev.yml exec iris-engine pytest tests/test_fnmr.py -v -s
-
-test-fnmr-mmu2:    ## Run FNMR accuracy test on MMU2 dataset
-	docker compose -f docker-compose.yml -f docker-compose.dev.yml exec iris-engine pytest tests/test_fnmr_mmu2.py -v -s
-
-test-bench:        ## Run pipeline latency benchmark
-	docker compose -f docker-compose.yml -f docker-compose.dev.yml exec iris-engine pytest tests/test_benchmark.py -v -s
-
-shell:             ## Open shell in iris-engine container
-	docker compose exec iris-engine /bin/bash
+shell:             ## Open shell in iris-engine2 container
+	docker compose exec iris-engine2 /bin/bash
 
 # --- Client Logs ---
 
@@ -182,6 +172,20 @@ download-models:   ## Download ONNX segmentation model from HuggingFace
 			"https://huggingface.co/Worldcoin/iris-semantic-segmentation/resolve/main/iris_semseg_upp_scse_mobilenetv2.onnx"; \
 		echo "  Done."; \
 	fi
+
+# --- 3rd-party Dependencies ---
+
+update-3rd-party:  ## Update vendored 3rd-party dependencies (OpenFHE, etc.)
+	@echo "Updating 3rd-party dependencies..."
+	@mkdir -p 3rd-party
+	@if [ -d 3rd-party/openfhe-development ]; then \
+		echo "  Updating OpenFHE..."; \
+		cd 3rd-party/openfhe-development && git fetch origin && git checkout v1.4.2 && git pull; \
+	else \
+		echo "  Cloning OpenFHE v1.4.2..."; \
+		git clone --depth 1 --branch v1.4.2 https://github.com/openfheorg/openfhe-development.git 3rd-party/openfhe-development; \
+	fi
+	@echo "  Done."
 
 # --- iris-engine2 (C++ libiris) ---
 

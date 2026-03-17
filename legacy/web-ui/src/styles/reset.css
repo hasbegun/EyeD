@@ -1,0 +1,12 @@
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+html, body {
+  height: 100%;
+  font-family: var(--eyed-font);
+  background: var(--eyed-bg);
+  color: var(--eyed-text);
+  -webkit-font-smoothing: antialiased;
+}

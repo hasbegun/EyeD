@@ -218,10 +218,4 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get logClear => '로그 삭제';
-
-  @override
-  String get engine1Label => '엔진 1';
-
-  @override
-  String get engine2Label => '엔진 2';
 }

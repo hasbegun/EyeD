@@ -2,8 +2,10 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:uuid/uuid.dart';
 
 import '../l10n/app_localizations.dart';
@@ -23,14 +25,16 @@ class _IndividualTabState extends ConsumerState<IndividualTab>
 
   Uint8List? _leftBytes;
   String? _leftFileName;
+  String? _leftFilePath;
   bool _leftNA = false;
 
   Uint8List? _rightBytes;
   String? _rightFileName;
+  String? _rightFilePath;
   bool _rightNA = false;
 
   bool _enrolling = false;
-  String? _lastDir; // remember last picked directory
+  String? _lastDir; // remember last picked directory (native only)
 
   @override
   bool get wantKeepAlive => true;
@@ -50,29 +54,51 @@ class _IndividualTabState extends ConsumerState<IndividualTab>
   }
 
   Future<void> _pickImage({required bool isLeft}) async {
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['jpg', 'jpeg', 'png', 'bmp'],
-      initialDirectory: _lastDir,
-      withData: true,
-    );
-    if (result == null || result.files.isEmpty) return;
-    final file = result.files.first;
-    if (file.bytes == null) return;
+    Uint8List? bytes;
+    String? name;
+    String? path;
 
-    // Remember directory for next pick
-    if (file.path != null) {
-      _lastDir = file.path!.substring(0, file.path!.lastIndexOf('/'));
+    try {
+      if (kIsWeb) {
+        // image_picker handles the browser gesture chain reliably on web
+        final xfile = await ImagePicker().pickImage(source: ImageSource.gallery);
+        if (xfile == null) return;
+        bytes = await xfile.readAsBytes();
+        name = xfile.name;
+        path = xfile.path;
+      } else {
+        // file_picker supports initialDirectory on native platforms
+        final result = await FilePicker.platform.pickFiles(
+          type: FileType.image,
+          initialDirectory: _lastDir,
+          withData: true,
+        );
+        if (result == null || result.files.isEmpty) return;
+        final file = result.files.first;
+        bytes = file.bytes;
+        name = file.name;
+        path = file.path;
+        if (path != null) {
+          _lastDir = path.substring(0, path.lastIndexOf('/'));
+        }
+      }
+    } catch (e) {
+      debugPrint('Image picker error: $e');
+      return;
     }
+
+    if (bytes == null || bytes.isEmpty) return;
 
     setState(() {
       if (isLeft) {
-        _leftBytes = file.bytes;
-        _leftFileName = file.name;
+        _leftBytes = bytes;
+        _leftFileName = name;
+        _leftFilePath = path ?? name;
         _leftNA = false;
       } else {
-        _rightBytes = file.bytes;
-        _rightFileName = file.name;
+        _rightBytes = bytes;
+        _rightFileName = name;
+        _rightFilePath = path ?? name;
         _rightNA = false;
       }
     });
@@ -148,14 +174,16 @@ class _IndividualTabState extends ConsumerState<IndividualTab>
         );
       }
 
-      // Clear inputs but keep _lastDir
+      // Clear inputs
       setState(() {
         _nameController.clear();
         _leftBytes = null;
         _leftFileName = null;
+        _leftFilePath = null;
         _leftNA = false;
         _rightBytes = null;
         _rightFileName = null;
+        _rightFilePath = null;
         _rightNA = false;
       });
     } catch (e) {
@@ -205,6 +233,7 @@ class _IndividualTabState extends ConsumerState<IndividualTab>
               _EyeInput(
                 label: l.leftEye,
                 fileName: _leftFileName,
+                filePath: _leftFilePath,
                 imageBytes: _leftBytes,
                 isNA: _leftNA,
                 onPick: () => _pickImage(isLeft: true),
@@ -218,6 +247,7 @@ class _IndividualTabState extends ConsumerState<IndividualTab>
               _EyeInput(
                 label: l.rightEye,
                 fileName: _rightFileName,
+                filePath: _rightFilePath,
                 imageBytes: _rightBytes,
                 isNA: _rightNA,
                 onPick: () => _pickImage(isLeft: false),
@@ -255,6 +285,7 @@ class _IndividualTabState extends ConsumerState<IndividualTab>
 class _EyeInput extends StatelessWidget {
   final String label;
   final String? fileName;
+  final String? filePath;
   final Uint8List? imageBytes;
   final bool isNA;
   final VoidCallback onPick;
@@ -265,6 +296,7 @@ class _EyeInput extends StatelessWidget {
   const _EyeInput({
     required this.label,
     required this.fileName,
+    this.filePath,
     required this.imageBytes,
     required this.isNA,
     required this.onPick,
@@ -320,6 +352,17 @@ class _EyeInput extends StatelessWidget {
                 fit: BoxFit.contain,
               ),
             ),
+            if (filePath != null) ...[
+              const SizedBox(height: 4),
+              Text(
+                filePath!,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
+              ),
+            ],
           ],
         ] else ...[
           const SizedBox(height: 8),

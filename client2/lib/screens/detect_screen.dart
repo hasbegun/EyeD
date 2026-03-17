@@ -1,8 +1,10 @@
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../l10n/app_localizations.dart';
 import '../models/analyze_result.dart';
@@ -25,23 +27,39 @@ class _DetectScreenState extends ConsumerState<DetectScreen> {
   String? _lastDir;
 
   Future<void> _pickImage() async {
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['jpg', 'jpeg', 'png', 'bmp'],
-      initialDirectory: _lastDir,
-      withData: true,
-    );
-    if (result == null || result.files.isEmpty) return;
-    final file = result.files.first;
-    if (file.bytes == null) return;
+    Uint8List? bytes;
+    String? name;
 
-    if (file.path != null) {
-      _lastDir = file.path!.substring(0, file.path!.lastIndexOf('/'));
+    try {
+      if (kIsWeb) {
+        final xfile = await ImagePicker().pickImage(source: ImageSource.gallery);
+        if (xfile == null) return;
+        bytes = await xfile.readAsBytes();
+        name = xfile.name;
+      } else {
+        final result = await FilePicker.platform.pickFiles(
+          type: FileType.image,
+          initialDirectory: _lastDir,
+          withData: true,
+        );
+        if (result == null || result.files.isEmpty) return;
+        final file = result.files.first;
+        bytes = file.bytes;
+        name = file.name;
+        if (file.path != null) {
+          _lastDir = file.path!.substring(0, file.path!.lastIndexOf('/'));
+        }
+      }
+    } catch (e) {
+      debugPrint('Image picker error: $e');
+      return;
     }
 
+    if (bytes == null || bytes.isEmpty) return;
+
     setState(() {
-      _imageBytes = file.bytes;
-      _fileName = file.name;
+      _imageBytes = bytes;
+      _fileName = name;
       _result = null;
       _error = null;
     });

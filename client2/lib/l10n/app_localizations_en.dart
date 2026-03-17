@@ -220,10 +220,4 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get logClear => 'Clear log';
-
-  @override
-  String get engine1Label => 'Engine 1';
-
-  @override
-  String get engine2Label => 'Engine 2';
 }

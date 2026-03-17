@@ -1,4 +1,4 @@
-.PHONY: up down dev build build-gateway build-capture build-client build-storage rebuild logs health ready test test-fnmr test-fnmr-mmu2 test-bench shell status clean nuke ps gallery webcam webcam-macos webcam-relay build-tools dev-client2 dev-client2-macos build-client2-web build-client2-macos db-shell db-reset db-clean export-training download-models build-iris2 test-iris2 test-iris-engine2-container clean-iris2
+.PHONY: up down build build-gateway build-capture build-client build-storage rebuild logs health ready test-integration status clean nuke ps gallery webcam webcam-macos webcam-relay build-tools dev-client2 dev-client2-macos build-client2-web build-client2-macos db-shell db-reset db-clean export-training download-models build-iris2 test-iris2 test-iris-engine2-container clean-iris2
 
 # --- Core ---
 
@@ -10,9 +10,6 @@ up-d:              ## Start all services (detached)
 
 down:              ## Stop all services
 	docker compose down
-
-dev:               ## Start with hot reload (development)
-	docker compose -f docker-compose.yml -f docker-compose.dev.yml up
 
 build:             ## Build all service images
 	docker compose build
@@ -32,27 +29,23 @@ build-storage:     ## Build storage service image
 rebuild:           ## Rebuild all without cache
 	docker compose build --no-cache
 
-restart:           ## Restart iris-engine
-	docker compose restart iris-engine
-
 # --- Status ---
 
 ps:                ## Show running containers
 	docker compose ps
 
 health:            ## Liveness check (all services)
-	@echo "--- iris-engine ---" && curl -s http://localhost:9500/health/alive | python3 -m json.tool
-	@echo "--- iris-engine2 ---" && curl -s http://localhost:9510/health/alive | python3 -m json.tool 2>/dev/null || echo '  (not running)'
+	@echo "--- iris-engine2 ---" && curl -s http://localhost:9510/health/alive | python3 -m json.tool
 	@echo "--- gateway ---" && curl -s http://localhost:9504/health/alive | python3 -m json.tool
 	@echo "--- storage ---" && curl -s http://localhost:9507/health/alive | python3 -m json.tool 2>/dev/null || echo '  (not running)'
 
 ready:             ## Readiness check (all services)
-	@echo "--- iris-engine ---" && curl -s http://localhost:9500/health/ready | python3 -m json.tool
+	@echo "--- iris-engine2 ---" && curl -s http://localhost:9510/health/ready | python3 -m json.tool
 	@echo "--- gateway ---" && curl -s http://localhost:9504/health/ready | python3 -m json.tool
 	@echo "--- storage ---" && curl -s http://localhost:9507/health/ready | python3 -m json.tool 2>/dev/null || echo '  (not running)'
 
 gallery:           ## Show gallery size
-	@curl -s http://localhost:9500/gallery/size | python3 -m json.tool
+	@curl -s http://localhost:9510/gallery/size | python3 -m json.tool
 
 nats-info:         ## NATS server info
 	@curl -s http://localhost:9501/varz | python3 -m json.tool
@@ -70,9 +63,6 @@ status: ps health ready gallery  ## Full status overview
 logs:              ## Follow all logs
 	docker compose logs -f
 
-logs-engine:       ## Follow iris-engine logs
-	docker compose logs -f iris-engine
-
 logs-nats:         ## Follow NATS logs
 	docker compose logs -f nats
 
@@ -87,26 +77,11 @@ logs-storage:      ## Follow storage service logs
 
 # --- Testing ---
 
-test:              ## Run all tests inside container
-	docker compose exec iris-engine pytest tests/ -v
-
-test-integration:  ## Run end-to-end integration test (gateway → NATS → iris-engine)
+test-integration:  ## Run end-to-end integration test (gateway → NATS → iris-engine2)
 	@docker compose stop capture-device 2>/dev/null || true
 	@sleep 2
 	docker compose run --rm integration-test
 	@docker compose start capture-device 2>/dev/null || true
-
-test-fnmr:         ## Run FNMR accuracy test on CASIA1 dataset
-	docker compose -f docker-compose.yml -f docker-compose.dev.yml exec iris-engine pytest tests/test_fnmr.py -v -s
-
-test-fnmr-mmu2:    ## Run FNMR accuracy test on MMU2 dataset
-	docker compose -f docker-compose.yml -f docker-compose.dev.yml exec iris-engine pytest tests/test_fnmr_mmu2.py -v -s
-
-test-bench:        ## Run pipeline latency benchmark
-	docker compose -f docker-compose.yml -f docker-compose.dev.yml exec iris-engine pytest tests/test_benchmark.py -v -s
-
-shell:             ## Open shell in iris-engine container
-	docker compose exec iris-engine /bin/bash
 
 # --- Client Logs ---
 

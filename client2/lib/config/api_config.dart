@@ -2,9 +2,13 @@ class ApiConfig {
   final String engineBaseUrl;
 
   const ApiConfig({
-    this.engineBaseUrl = 'http://127.0.0.1:9500',
+    this.engineBaseUrl = ApiConfig.defaultBaseUrl,
   });
 
-  static const String engine1Url = 'http://127.0.0.1:9500';
-  static const String engine2Url = 'http://127.0.0.1:9510';
+  static const _apiMode = String.fromEnvironment('API_MODE');
+
+  /// In proxy mode (Docker/nginx), use the relative /engine path so nginx
+  /// forwards requests to iris-engine2.  For local dev, hit the port directly.
+  static const String defaultBaseUrl =
+      _apiMode == 'proxy' ? '/engine' : 'http://127.0.0.1:9510';
 }

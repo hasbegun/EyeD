@@ -21,16 +21,6 @@ services:
       timeout: 3s
       retries: 5
 
-  redis:
-    image: redis:7-alpine
-    ports:
-      - "9508:6379"
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
-
   nats:
     image: nats:2.10
     ports:
@@ -39,49 +29,6 @@ services:
     command: --config /etc/nats/nats-server.conf
     volumes:
       - ./config/nats-server.conf:/etc/nats/nats-server.conf:ro
-
-  iris-engine:
-    build:
-      context: ./iris-engine
-      args:
-        RUNTIME: cpu
-    ports:
-      - "9500:7000"
-    depends_on:
-      nats:
-        condition: service_started
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    secrets:
-      - db_user
-      - db_name
-      - db_password
-    volumes:
-      - ./data:/data:ro
-      - ./models:/app/models:ro  # Pre-downloaded ONNX models (avoids HuggingFace download)
-      # - he-keys:/keys:ro   # HE keys (disabled for dev — enables fast plaintext enrollment)
-    environment:
-      EYED_RUNTIME: cpu
-      EYED_NATS_URL: nats://nats:4222
-      EYED_DB_USER_FILE: /run/secrets/db_user
-      EYED_DB_NAME_FILE: /run/secrets/db_name
-      EYED_DB_PASSWORD_FILE: /run/secrets/db_password
-      EYED_DB_URL: postgresql://__DB_USER__:__DB_PASSWORD__@postgres:5432/__DB_NAME__
-      EYED_REDIS_URL: redis://redis:6379/0
-      # HE auto-detected from key files in /keys (no env var toggle — tamper-proof)
-      EYED_HE_KEY_DIR: /keys    # Shared volume with key-service
-      EYED_ALLOW_PLAINTEXT: "true"  # Dev mode: skip HE encryption (much faster enrollment)
-      EYED_LOG_LEVEL: info
-      HF_HUB_OFFLINE: "1"     # Never contact HuggingFace (models pre-mounted)
-      OMP_NUM_THREADS: "2"
-    healthcheck:
-      test: ["CMD", "python3", "-c", "import urllib.request,json; d=json.load(urllib.request.urlopen('http://localhost:7000/health/ready')); exit(0 if d.get('ready') else 1)"]
-      interval: 5s
-      timeout: 3s
-      retries: 30
-      start_period: 60s
 
   iris-engine2:
     build:
@@ -191,7 +138,7 @@ services:
     depends_on:
       gateway:
         condition: service_started
-      iris-engine:
+      iris-engine2:
         condition: service_healthy
     volumes:
       - ./data:/data:ro

@@ -8,9 +8,6 @@ class GalleryNotifier extends StateNotifier<AsyncValue<List<GalleryIdentity>>> {
 
   GalleryNotifier(this._ref) : super(const AsyncValue.loading()) {
     refresh();
-    // Auto-refresh when engine changes (listen on apiClientProvider so the
-    // new client is already available when the callback fires)
-    _ref.listen(apiClientProvider, (_, __) => refresh());
   }
 
   Future<void> refresh() async {

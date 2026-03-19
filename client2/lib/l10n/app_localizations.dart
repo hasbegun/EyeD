@@ -488,6 +488,29 @@ abstract class AppLocalizations {
   /// **'Clear log'**
   String get logClear;
 
+  /// No description provided for @devBadge.
+  ///
+  /// In en, this message translates to:
+  /// **'DEV'**
+  String get devBadge;
+
+  /// No description provided for @fheOn.
+  ///
+  /// In en, this message translates to:
+  /// **'FHE On'**
+  String get fheOn;
+
+  /// No description provided for @fheOff.
+  ///
+  /// In en, this message translates to:
+  /// **'FHE Off'**
+  String get fheOff;
+
+  /// No description provided for @fheToggleError.
+  ///
+  /// In en, this message translates to:
+  /// **'FHE toggle failed'**
+  String get fheToggleError;
 }
 
 class _AppLocalizationsDelegate

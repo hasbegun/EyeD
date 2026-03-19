@@ -7,16 +7,24 @@
 #include "routes_analyze.h"
 #include "routes_enroll.h"
 #include "routes_gallery.h"
+#include "routes_config.h"
 
+#include <fstream>
 #include <iostream>
 #include <mutex>
 #include <httplib.h>
 #include <iris/pipeline/iris_pipeline.hpp>
+#include <spdlog/spdlog.h>
 
 int main() {
     auto config = Config::from_env();
 
-    std::cout << "[iris-engine2] Starting..." << std::endl;
+    // Set log level from mode (applies to all spdlog loggers, including libiris)
+    if (config.mode == "prod")      spdlog::set_level(spdlog::level::warn);
+    else if (config.mode == "test") spdlog::set_level(spdlog::level::info);
+    else                            spdlog::set_level(spdlog::level::debug);
+
+    std::cout << "[iris-engine2] Starting in " << config.mode << " mode..." << std::endl;
     std::cout << "[iris-engine2] Pipeline config: " << config.pipeline_config << std::endl;
     std::cout << "[iris-engine2] Match threshold: " << config.match_threshold << std::endl;
     std::cout << "[iris-engine2] Dedup threshold: " << config.dedup_threshold << std::endl;
@@ -103,14 +111,28 @@ int main() {
                   << " templates" << std::endl;
     }
 
+    // --- Load persisted FHE toggle state (dev/test only) ---
+    if (config.mode != "prod") {
+        std::ifstream state_file(config.fhe_state_path);
+        if (state_file.good()) {
+            std::string val;
+            std::getline(state_file, val);
+            config.fhe_enabled = (val == "true" || val == "1");
+            std::cout << "[iris-engine2] FHE toggle state loaded from "
+                      << config.fhe_state_path << ": "
+                      << (config.fhe_enabled ? "enabled" : "disabled") << std::endl;
+        }
+    }
+
     // --- Register routes ---
-    eyed::ServerContext ctx{config, pipeline, pipeline_mutex, fhe, db, gallery};
+    eyed::ServerContext ctx{config, pipeline, pipeline_mutex, fhe, db, gallery, {}, {}};
     httplib::Server svr;
 
     eyed::register_health_routes (svr, ctx);
     eyed::register_analyze_routes(svr, ctx);
     eyed::register_enroll_routes (svr, ctx);
     eyed::register_gallery_routes(svr, ctx);
+    eyed::register_config_routes (svr, ctx);
 
     // --- Start server ---
     std::cout << "[iris-engine2] Listening on 0.0.0.0:" << config.port << std::endl;

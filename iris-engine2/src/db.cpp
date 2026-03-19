@@ -17,6 +17,7 @@ void Database::PGconn_deleter::operator()(struct pg_conn* conn) const {
 Database::~Database() { disconnect(); }
 
 bool Database::connect(const std::string& conninfo) {
+    conninfo_ = conninfo;
     auto* raw = PQconnectdb(conninfo.c_str());
     if (PQstatus(raw) != CONNECTION_OK) {
         std::cerr << "[db] Connection failed: " << PQerrorMessage(raw) << std::endl;
@@ -25,6 +26,21 @@ bool Database::connect(const std::string& conninfo) {
     }
     conn_.reset(raw);
     std::cout << "[db] Connected to PostgreSQL" << std::endl;
+    return true;
+}
+
+bool Database::reconnect() {
+    if (conninfo_.empty()) return false;
+    std::cerr << "[db] Reconnecting to PostgreSQL..." << std::endl;
+    conn_.reset();  // close stale connection
+    auto* raw = PQconnectdb(conninfo_.c_str());
+    if (PQstatus(raw) != CONNECTION_OK) {
+        std::cerr << "[db] Reconnect failed: " << PQerrorMessage(raw) << std::endl;
+        PQfinish(raw);
+        return false;
+    }
+    conn_.reset(raw);
+    std::cout << "[db] Reconnected to PostgreSQL" << std::endl;
     return true;
 }
 
@@ -145,19 +161,36 @@ std::optional<Database::TemplateRow> Database::load_template(
     row.device_id = PQgetvalue(res, 0, 8) ? PQgetvalue(res, 0, 8) : "";
 
     // BYTEA in text format comes as hex-escaped; use PQunescapeBytea to decode
+    // Check for NULL values before unescaping
     size_t iris_len = 0;
-    auto* iris_data = PQunescapeBytea(
-        reinterpret_cast<const unsigned char*>(PQgetvalue(res, 0, 9)), &iris_len);
-    size_t mask_len = 0;
-    auto* mask_data = PQunescapeBytea(
-        reinterpret_cast<const unsigned char*>(PQgetvalue(res, 0, 10)), &mask_len);
+    unsigned char* iris_data = nullptr;
+    if (!PQgetisnull(res, 0, 9)) {
+        iris_data = PQunescapeBytea(
+            reinterpret_cast<const unsigned char*>(PQgetvalue(res, 0, 9)), &iris_len);
+    }
 
-    row.tmpl.iris_codes = deserialize_codes(iris_data, iris_len);
-    row.tmpl.mask_codes = deserialize_codes(mask_data, mask_len);
+    size_t mask_len = 0;
+    unsigned char* mask_data = nullptr;
+    if (!PQgetisnull(res, 0, 10)) {
+        mask_data = PQunescapeBytea(
+            reinterpret_cast<const unsigned char*>(PQgetvalue(res, 0, 10)), &mask_len);
+    }
+
+    // Only deserialize if data is not NULL
+    if (iris_data && iris_len > 0) {
+        row.tmpl.iris_codes = deserialize_codes(iris_data, iris_len);
+    }
+    if (mask_data && mask_len > 0) {
+        row.tmpl.mask_codes = deserialize_codes(mask_data, mask_len);
+    }
     row.tmpl.iris_code_version = "v2.0";
 
-    PQfreemem(iris_data);
-    PQfreemem(mask_data);
+    // Template is encrypted if iris_codes deserialized to empty (encrypted format uses different structure)
+    // When allow_plaintext=true, templates are stored as plaintext and iris_codes will have data
+    row.is_encrypted = row.tmpl.iris_codes.empty() && iris_len > 4;
+
+    if (iris_data) PQfreemem(iris_data);
+    if (mask_data) PQfreemem(mask_data);
     PQclear(res);
     return row;
 }

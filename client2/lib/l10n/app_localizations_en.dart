@@ -220,4 +220,16 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get logClear => 'Clear log';
+
+  @override
+  String get devBadge => 'DEV';
+
+  @override
+  String get fheOn => 'FHE On';
+
+  @override
+  String get fheOff => 'FHE Off';
+
+  @override
+  String get fheToggleError => 'FHE toggle failed';
 }

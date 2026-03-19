@@ -218,4 +218,16 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get logClear => '로그 삭제';
+
+  @override
+  String get devBadge => '개발';
+
+  @override
+  String get fheOn => 'FHE 켜짐';
+
+  @override
+  String get fheOff => 'FHE 꺼짐';
+
+  @override
+  String get fheToggleError => 'FHE 전환 실패';
 }

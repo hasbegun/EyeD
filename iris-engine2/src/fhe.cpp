@@ -23,24 +23,16 @@ bool FHEManager::initialize(const std::string& key_dir) {
                 std::cout << "[fhe] Loaded existing keys from " << key_dir
                           << " (key_id=" << bundle->metadata.key_id << ")"
                           << std::endl;
-                // Keys loaded from store are already injected into context
-                // through the load process — but KeyStore::load only
-                // deserializes the key objects. We need to regenerate
-                // the context keys from the loaded bundle.
-                // Actually, OpenFHE deserialization restores the keys into
-                // the CryptoContext automatically. We just need to generate
-                // fresh keys and inject them.
 
-                // For now, generate fresh keys (PoC approach).
-                // TODO: Proper key loading from KeyStore requires
-                // injecting loaded keys into the crypto context.
-                auto gen_result = ctx_->generate_keys();
-                if (!gen_result) {
-                    std::cerr << "[fhe] Key generation failed: "
-                              << gen_result.error().message << std::endl;
+                // Inject loaded keys into the FHE context and regenerate eval keys
+                auto load_result = ctx_->load_keys(bundle->public_key, bundle->secret_key);
+                if (!load_result) {
+                    std::cerr << "[fhe] Failed to inject loaded keys: "
+                              << load_result.error().message << std::endl;
                     return false;
                 }
-                std::cout << "[fhe] Generated fresh keys (PoC mode)" << std::endl;
+                std::cout << "[fhe] Keys restored from disk (slot_count="
+                          << ctx_->slot_count() << ")" << std::endl;
                 active_ = true;
                 return true;
             }

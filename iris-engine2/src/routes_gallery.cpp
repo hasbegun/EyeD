@@ -41,15 +41,19 @@ void register_gallery_routes(httplib::Server& svr, ServerContext& ctx) {
             [&ctx](const httplib::Request& req, httplib::Response& res) {
                 auto template_id = req.path_params.at("id");
 
-                if (!ctx.db.is_connected()) {
-                    res.status = 503;
-                    res.set_content(
-                        json({{"detail", "Database not connected"}}).dump(),
-                        "application/json");
-                    return;
+                std::optional<Database::TemplateRow> row;
+                {
+                    std::lock_guard<std::mutex> lock(ctx.db_mutex);
+                    if (!ctx.db.is_connected()) ctx.db.reconnect();
+                    if (!ctx.db.is_connected()) {
+                        res.status = 503;
+                        res.set_content(
+                            json({{"detail", "Database not connected"}}).dump(),
+                            "application/json");
+                        return;
+                    }
+                    row = ctx.db.load_template(template_id);
                 }
-
-                auto row = ctx.db.load_template(template_id);
                 if (!row) {
                     res.status = 404;
                     res.set_content(
@@ -60,7 +64,7 @@ void register_gallery_routes(httplib::Server& svr, ServerContext& ctx) {
 
                 json iris_code_b64 = nullptr;
                 json mask_code_b64 = nullptr;
-                bool is_encrypted  = ctx.fhe.is_active();
+                bool is_encrypted  = row->is_encrypted;
 
                 if (!is_encrypted && !row->tmpl.iris_codes.empty()) {
                     auto [code_mat, mask_mat] = row->tmpl.iris_codes[0].to_mat();
@@ -105,8 +109,11 @@ void register_gallery_routes(httplib::Server& svr, ServerContext& ctx) {
 
                    int removed = ctx.gallery.remove(identity_id);
 
-                   if (ctx.db.is_connected()) {
-                       ctx.db.delete_identity(identity_id);
+                   {
+                       std::lock_guard<std::mutex> lock(ctx.db_mutex);
+                       if (ctx.db.is_connected()) {
+                           ctx.db.delete_identity(identity_id);
+                       }
                    }
 
                    res.set_content(json({

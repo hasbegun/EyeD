@@ -13,11 +13,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libssl-dev libomp-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Build OpenFHE C++ library
-ARG OPENFHE_VERSION=v1.4.2
-RUN git clone --depth 1 --branch ${OPENFHE_VERSION} \
-        https://github.com/openfheorg/openfhe-development.git /tmp/openfhe && \
-    cd /tmp/openfhe && mkdir build && cd build && \
+# Build OpenFHE C++ library from local source (no network required)
+# Supplied via additional_contexts.openfhe-src in docker-compose.yml
+COPY --from=openfhe-src . /tmp/openfhe/
+RUN cd /tmp/openfhe && mkdir build && cd build && \
     cmake .. \
         -DCMAKE_INSTALL_PREFIX=/usr/local \
         -DCMAKE_BUILD_TYPE=Release \

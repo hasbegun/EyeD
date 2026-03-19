@@ -1,0 +1,41 @@
+# Production overlay — always hardcodes EYED_MODE=prod.
+# Immune to .env tampering: this file's values override any .env settings.
+# Port mappings are inherited from docker-compose.yml (kept as-is).
+# db_name_engine2 secret is explicitly set to the prod database (eyed).
+#
+# Usage (via Makefile):  make up   OR   make up-prod
+# Direct:  docker compose -f docker-compose.yml -f docker-compose.prod.yml up
+
+secrets:
+  db_name_engine2:
+    file: ./secrets/db_name_engine2.txt
+
+services:
+  iris-engine2:
+    build:
+      args:
+        EYED_MODE: prod
+    environment:
+      EYED_MODE: prod
+      EYED_ALLOW_PLAINTEXT: "false"
+
+  key-service:
+    environment:
+      EYED_MODE: prod
+
+  gateway:
+    environment:
+      EYED_MODE: prod
+
+  capture-device:
+    environment:
+      EYED_MODE: prod
+
+  storage:
+    environment:
+      EYED_MODE: prod
+
+  client2:
+    build:
+      args:
+        EYED_MODE: prod

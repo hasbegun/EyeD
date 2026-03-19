@@ -24,6 +24,7 @@ class Database {
     bool connect(const std::string& conninfo);
     void disconnect();
     bool is_connected() const;
+    bool reconnect();
 
     // Load all templates for gallery initialization
     std::vector<DbTemplate> load_all_templates();
@@ -60,6 +61,7 @@ class Database {
         double quality_score = 0.0;
         std::string device_id;
         iris::IrisTemplate tmpl;
+        bool is_encrypted = false;
     };
     std::optional<TemplateRow> load_template(const std::string& template_id);
 
@@ -98,4 +100,5 @@ class Database {
         void operator()(struct pg_conn* conn) const;
     };
     std::unique_ptr<struct pg_conn, PGconn_deleter> conn_;
+    std::string conninfo_;
 };

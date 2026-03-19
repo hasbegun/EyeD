@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
+import 'config/mode_config.dart';
 import 'l10n/app_localizations.dart';
+import 'providers/fhe_provider.dart';
 import 'screens/enroll_screen.dart';
 import 'screens/detect_screen.dart';
 import 'screens/log_screen.dart';
@@ -72,6 +74,12 @@ class _ShellState extends ConsumerState<_Shell> {
           onPressed: () => setState(() => _extended = !_extended),
         ),
         actions: [
+          if (ModeConfig.showDevTools) ...[
+            const _DevBadge(),
+            const SizedBox(width: 8),
+            const _FheToggle(),
+            const SizedBox(width: 4),
+          ],
           TextButton(
             onPressed: () {
               final next = locale.languageCode == 'en'
@@ -118,6 +126,103 @@ class _ShellState extends ConsumerState<_Shell> {
           Expanded(child: _pages[_index]),
         ],
       ),
+    );
+  }
+}
+
+/// Amber "DEV" badge in the AppBar — compiled in only when
+/// [ModeConfig.showDevTools] is true (const-guarded, tree-shaken in prod).
+class _DevBadge extends StatelessWidget {
+  const _DevBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      decoration: BoxDecoration(
+        color: Colors.amber.shade600,
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        l.devBadge,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 11,
+          fontWeight: FontWeight.bold,
+          letterSpacing: 0.8,
+        ),
+      ),
+    );
+  }
+}
+
+/// FHE toggle chip — only rendered in dev/test builds
+/// (behind [ModeConfig.showDevTools]).
+/// Shows the current FHE state and allows toggling via [fheProvider].
+class _FheToggle extends ConsumerWidget {
+  const _FheToggle();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l = AppLocalizations.of(context);
+    final fheAsync = ref.watch(fheProvider);
+
+    return fheAsync.when(
+      loading: () => const SizedBox(
+        width: 20,
+        height: 20,
+        child: CircularProgressIndicator(strokeWidth: 2),
+      ),
+      error: (_, __) => const SizedBox.shrink(),
+      data: (state) {
+        if (state.isToggling) {
+          return const SizedBox(
+            width: 20,
+            height: 20,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          );
+        }
+        return ActionChip(
+          avatar: Icon(
+            state.fheEnabled ? Icons.lock : Icons.lock_open,
+            size: 16,
+            color: state.fheEnabled
+                ? Colors.green.shade700
+                : Colors.orange.shade700,
+          ),
+          label: Text(
+            state.fheEnabled ? l.fheOn : l.fheOff,
+            style: TextStyle(
+              fontSize: 13,
+              color: state.fheEnabled
+                  ? Colors.green.shade800
+                  : Colors.orange.shade800,
+            ),
+          ),
+          backgroundColor: state.fheEnabled
+              ? Colors.green.shade50
+              : Colors.orange.shade50,
+          side: BorderSide(
+            color: state.fheEnabled
+                ? Colors.green.shade300
+                : Colors.orange.shade300,
+          ),
+          onPressed: () async {
+            try {
+              await ref
+                  .read(fheProvider.notifier)
+                  .toggle(!state.fheEnabled);
+            } catch (_) {
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text(l.fheToggleError)),
+                );
+              }
+            }
+          },
+        );
+      },
     );
   }
 }

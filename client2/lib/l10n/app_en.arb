@@ -80,5 +80,10 @@
   "logHeaderStatus": "Status",
   "logHeaderLatency": "Latency",
   "logEmpty": "No detection results yet.",
-  "logClear": "Clear log"
+  "logClear": "Clear log",
+
+  "devBadge": "DEV",
+  "fheOn": "FHE On",
+  "fheOff": "FHE Off",
+  "fheToggleError": "FHE toggle failed"
 }

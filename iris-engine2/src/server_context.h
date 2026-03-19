@@ -17,6 +17,8 @@ struct ServerContext {
     FHEManager&           fhe;
     Database&             db;
     Gallery&              gallery;
+    std::mutex            fhe_mutex;   // Protects runtime fhe_enabled toggle (dev/test only)
+    std::mutex            db_mutex;    // Protects Database (PGconn is not thread-safe)
 };
 
 } // namespace eyed

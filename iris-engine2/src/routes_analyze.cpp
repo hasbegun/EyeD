@@ -87,13 +87,16 @@ void register_analyze_routes(httplib::Server& svr, ServerContext& ctx) {
                 {"best_rotation",          match->best_rotation},
             };
 
-            if (ctx.db.is_connected()) {
-                ctx.db.log_match(
-                    frame_id,
-                    match->is_match ? match->matched_template_id : "",
-                    match->is_match ? match->matched_identity_id : "",
-                    match->hamming_distance, match->is_match,
-                    device_id, static_cast<int>(latency));
+            {
+                std::lock_guard<std::mutex> lock(ctx.db_mutex);
+                if (ctx.db.is_connected()) {
+                    ctx.db.log_match(
+                        frame_id,
+                        match->is_match ? match->matched_template_id : "",
+                        match->is_match ? match->matched_identity_id : "",
+                        match->hamming_distance, match->is_match,
+                        device_id, static_cast<int>(latency));
+                }
             }
         }
 

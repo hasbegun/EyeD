@@ -86,27 +86,60 @@ void register_enroll_routes(httplib::Server& svr, ServerContext& ctx) {
 
         auto template_id = generate_uuid();
 
-        // Persist to DB
-        if (ctx.db.is_connected()) {
-            ctx.db.ensure_identity(identity_id, identity_name);
+        // Prepare encrypted blobs outside the DB lock (encryption is slow)
+        std::vector<uint8_t> iris_blob, mask_blob;
+        bool use_fhe = false;
 #ifdef IRIS_HAS_FHE
-            if (ctx.fhe.is_active() && !ctx.config.allow_plaintext) {
-                auto [iris_blob, mask_blob] = ctx.fhe.encrypt_template(*result->iris_template);
-                if (iris_blob.empty() || mask_blob.empty()) {
-                    res.set_content(make_error("FHE encryption failed"), "application/json");
-                    return;
-                }
-                ctx.db.persist_encrypted_template(
+        if (ctx.config.fhe_enabled && ctx.fhe.is_active() && !ctx.config.allow_plaintext) {
+            use_fhe = true;
+            std::tie(iris_blob, mask_blob) = ctx.fhe.encrypt_template(*result->iris_template);
+            if (iris_blob.empty() || mask_blob.empty()) {
+                res.set_content(make_error("FHE encryption failed"), "application/json");
+                return;
+            }
+        }
+#endif
+
+        // Persist to DB (all DB calls under lock)
+        bool db_persisted = false;
+        {
+            std::lock_guard<std::mutex> lock(ctx.db_mutex);
+
+            // Auto-reconnect if connection was lost
+            if (!ctx.db.is_connected()) {
+                ctx.db.reconnect();
+            }
+            if (!ctx.db.is_connected()) {
+                std::cerr << "[enroll] Database not connected, cannot persist template" << std::endl;
+                res.status = 503;
+                res.set_content(make_error("Database not connected"), "application/json");
+                return;
+            }
+
+            if (!ctx.db.ensure_identity(identity_id, identity_name)) {
+                std::cerr << "[enroll] Failed to ensure identity: " << identity_id << std::endl;
+                res.status = 500;
+                res.set_content(make_error("Failed to create identity in database"), "application/json");
+                return;
+            }
+
+            if (use_fhe) {
+                db_persisted = ctx.db.persist_encrypted_template(
                     template_id, identity_id, eye_side_str,
                     iris_blob, mask_blob,
                     static_cast<int>(result->iris_template->iris_codes.size()),
                     device_id);
-            } else
-#endif
-            {
-                ctx.db.persist_template(template_id, identity_id, eye_side_str,
+            } else {
+                db_persisted = ctx.db.persist_template(template_id, identity_id, eye_side_str,
                                         *result->iris_template, device_id);
             }
+        }
+
+        if (!db_persisted) {
+            std::cerr << "[enroll] Failed to persist template to database: " << template_id << std::endl;
+            res.status = 500;
+            res.set_content(make_error("Failed to persist template to database"), "application/json");
+            return;
         }
 
         // Add to in-memory gallery
@@ -126,7 +159,7 @@ void register_enroll_routes(httplib::Server& svr, ServerContext& ctx) {
             {"is_duplicate",           false},
             {"duplicate_identity_id",  nullptr},
             {"duplicate_identity_name",nullptr},
-            {"is_encrypted",           ctx.fhe.is_active()},
+            {"is_encrypted",           ctx.config.fhe_enabled && ctx.fhe.is_active()},
             {"error",                  nullptr}
         }).dump(), "application/json");
     });

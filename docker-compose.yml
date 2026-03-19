@@ -36,6 +36,8 @@ services:
       target: runtime
       additional_contexts:
         libiris: ./iris-engine2/.libiris
+      args:
+        EYED_MODE: ${EYED_MODE:-prod}
     ports:
       - "9510:7000"
     depends_on:
@@ -52,6 +54,7 @@ services:
       EYED_DB_NAME_FILE: /run/secrets/db_name_engine2
       EYED_DB_PASSWORD_FILE: /run/secrets/db_password
       EYED_DB_URL: postgresql://__DB_USER__:__DB_PASSWORD__@postgres:5432/__DB_NAME__
+      EYED_MODE: ${EYED_MODE:-prod}
       EYED_PIPELINE_CONFIG: /src/libiris/pipeline.yaml
       EYED_FHE_ENABLED: "true"
       EYED_HE_KEY_DIR: /keys
@@ -70,6 +73,7 @@ services:
     depends_on:
       - nats
     environment:
+      EYED_MODE: ${EYED_MODE:-prod}
       EYED_NATS_URL: nats://nats:4222
       EYED_HE_KEY_DIR: /keys
       EYED_LOG_LEVEL: info
@@ -86,6 +90,7 @@ services:
     depends_on:
       - nats
     environment:
+      EYED_MODE: ${EYED_MODE:-prod}
       EYED_NATS_URL: nats://nats:4222
       EYED_LOG_LEVEL: info
 
@@ -99,6 +104,7 @@ services:
     volumes:
       - ./data:/data:ro
     environment:
+      EYED_MODE: ${EYED_MODE:-prod}
       EYED_GATEWAY_ADDR: gateway:50051
       EYED_DEVICE_ID: capture-01
       EYED_LOG_LEVEL: info
@@ -117,6 +123,7 @@ services:
     volumes:
       - archive-data:/data/archive
     environment:
+      EYED_MODE: ${EYED_MODE:-prod}
       EYED_NATS_URL: nats://nats:4222
       EYED_ARCHIVE_ROOT: /data/archive
       EYED_LOG_LEVEL: info
@@ -124,6 +131,8 @@ services:
   client2:
     build:
       context: ./client2
+      args:
+        EYED_MODE: ${EYED_MODE:-prod}
     ports:
       - "9505:80"
     depends_on:

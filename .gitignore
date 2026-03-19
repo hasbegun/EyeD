@@ -1,0 +1,40 @@
+# Environment (copy .env.example → .env to configure)
+.env
+
+# Secrets (plain-text credential files — never commit)
+secrets/
+
+# 3rd-party lib
+3rd-party/
+models/
+data/
+
+# Build artifacts
+build/
+*.o
+*.a
+*.so
+*.d
+
+# CMake
+iris-engine2/build/
+iris-engine2/.libiris/build/
+
+# Flutter / Dart
+client2/.dart_tool/
+client2/build/
+client2/.flutter-plugins
+client2/.flutter-plugins-dependencies
+
+# Python
+*.pyc
+__pycache__/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# macOS
+.DS_Store

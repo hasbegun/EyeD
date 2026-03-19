@@ -1,12 +1,22 @@
-.PHONY: up down build build-gateway build-capture build-client build-storage rebuild logs health ready test-integration status clean nuke ps gallery webcam webcam-macos webcam-relay build-tools dev-client2 dev-client2-macos build-client2-web build-client2-macos db-shell db-reset db-clean export-training download-models build-iris2 test-iris2 test-iris-engine2-container clean-iris2
+.PHONY: up up-prod up-dev up-test up-d down build build-gateway build-capture build-client build-storage rebuild logs health ready test-integration status clean nuke ps gallery webcam webcam-macos webcam-relay build-tools dev-client2 dev-client2-macos build-client2-web build-client2-macos db-shell db-reset db-clean export-training download-models build-iris2 test-iris2 test-iris-engine2-container clean-iris2
 
 # --- Core ---
 
-up:                ## Start all services
-	docker compose up
+PROD_COMPOSE := docker compose -f docker-compose.yml -f docker-compose.prod.yml
 
-up-d:              ## Start all services (detached)
-	docker compose up -d
+up: up-prod        ## Start all services (prod mode — safe default)
+
+up-prod:           ## Start in prod mode (hardcoded EYED_MODE=prod)
+	$(PROD_COMPOSE) up
+
+up-dev:            ## Start in dev mode (FHE toggle, debug logs, plaintext allowed)
+	EYED_MODE=dev docker compose up
+
+up-test:           ## Start in test mode (auto-includes integration-test profile)
+	EYED_MODE=test docker compose --profile test up
+
+up-d:              ## Start all services detached (prod mode)
+	$(PROD_COMPOSE) up -d
 
 down:              ## Stop all services
 	docker compose down

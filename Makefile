@@ -9,11 +9,11 @@ up: up-prod        ## Start all services (prod mode — safe default)
 up-prod:           ## Start in prod mode (hardcoded EYED_MODE=prod)
 	$(PROD_COMPOSE) up
 
-up-dev:            ## Start in dev mode (FHE toggle, debug logs, plaintext allowed)
-	EYED_MODE=dev docker compose up
+up-dev:            ## Start in dev mode (FHE toggle, debug logs, eyed_dev database)
+	EYED_MODE=dev docker compose -f docker-compose.yml -f docker-compose.dev.yml up
 
-up-test:           ## Start in test mode (auto-includes integration-test profile)
-	EYED_MODE=test docker compose --profile test up
+up-test:           ## Start in test mode (eyed_test database, integration-test auto-included)
+	EYED_MODE=test docker compose -f docker-compose.yml -f docker-compose.test.yml --profile test up
 
 up-d:              ## Start all services detached (prod mode)
 	$(PROD_COMPOSE) up -d

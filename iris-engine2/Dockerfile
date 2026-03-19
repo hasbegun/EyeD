@@ -91,12 +91,24 @@ COPY --from=libiris . libiris/
 COPY CMakeLists.txt .
 COPY src/ src/
 
-# Configure (FHE enabled via CMakeLists.txt: IRIS_ENABLE_FHE=ON)
-RUN cmake -S . -B build \
-    -G Ninja \
-    -DCMAKE_BUILD_TYPE=Release \
-    -DCMAKE_CXX_FLAGS="-march=native" \
-    -DONNXRUNTIME_ROOT=/opt/onnxruntime
+# Mode-based build flags:
+#   dev  → Release (fast iteration)
+#   test → Debug + sanitizers
+#   prod → Release (default)
+ARG EYED_MODE=prod
+RUN if [ "$EYED_MODE" = "test" ]; then \
+        BUILD_TYPE="Debug"; \
+        EXTRA_FLAGS="-fsanitize=address,undefined"; \
+    else \
+        BUILD_TYPE="Release"; \
+        EXTRA_FLAGS=""; \
+    fi && \
+    cmake -S . -B build \
+        -G Ninja \
+        -DCMAKE_BUILD_TYPE=${BUILD_TYPE} \
+        -DCMAKE_CXX_FLAGS="-march=native ${EXTRA_FLAGS}" \
+        -DCMAKE_EXE_LINKER_FLAGS="${EXTRA_FLAGS}" \
+        -DONNXRUNTIME_ROOT=/opt/onnxruntime
 
 # Build
 RUN cmake --build build --parallel $(nproc)
@@ -119,6 +131,9 @@ COPY --from=build /src/libiris/pipeline.yaml /src/libiris/pipeline.yaml
 
 # FHE key directory (mounted at runtime via docker-compose volume)
 RUN mkdir -p /keys && chown iris:iris /keys
+
+# Config directory for FHE toggle persistence (mounted as fhe-config volume)
+RUN mkdir -p /config && chown iris:iris /config
 
 RUN ldconfig
 

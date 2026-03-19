@@ -49,6 +49,7 @@ services:
       - db_password
     volumes:
       - ./models:/src/models:ro
+      - fhe-config:/config
     environment:
       EYED_DB_USER_FILE: /run/secrets/db_user
       EYED_DB_NAME_FILE: /run/secrets/db_name_engine2
@@ -172,3 +173,4 @@ volumes:
   pgdata:
   archive-data:
   he-keys:
+  fhe-config:

@@ -36,6 +36,7 @@ add_executable(iris-engine2
     src/routes_analyze.cpp
     src/routes_enroll.cpp
     src/routes_gallery.cpp
+    src/routes_config.cpp
 )
 
 target_include_directories(iris-engine2 PRIVATE

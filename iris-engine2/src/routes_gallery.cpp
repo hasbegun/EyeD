@@ -60,7 +60,7 @@ void register_gallery_routes(httplib::Server& svr, ServerContext& ctx) {
 
                 json iris_code_b64 = nullptr;
                 json mask_code_b64 = nullptr;
-                bool is_encrypted  = ctx.fhe.is_active();
+                bool is_encrypted  = ctx.config.fhe_enabled && ctx.fhe.is_active();
 
                 if (!is_encrypted && !row->tmpl.iris_codes.empty()) {
                     auto [code_mat, mask_mat] = row->tmpl.iris_codes[0].to_mat();

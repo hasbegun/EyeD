@@ -90,7 +90,7 @@ void register_enroll_routes(httplib::Server& svr, ServerContext& ctx) {
         if (ctx.db.is_connected()) {
             ctx.db.ensure_identity(identity_id, identity_name);
 #ifdef IRIS_HAS_FHE
-            if (ctx.fhe.is_active() && !ctx.config.allow_plaintext) {
+            if (ctx.config.fhe_enabled && ctx.fhe.is_active()) {
                 auto [iris_blob, mask_blob] = ctx.fhe.encrypt_template(*result->iris_template);
                 if (iris_blob.empty() || mask_blob.empty()) {
                     res.set_content(make_error("FHE encryption failed"), "application/json");
@@ -126,7 +126,7 @@ void register_enroll_routes(httplib::Server& svr, ServerContext& ctx) {
             {"is_duplicate",           false},
             {"duplicate_identity_id",  nullptr},
             {"duplicate_identity_name",nullptr},
-            {"is_encrypted",           ctx.fhe.is_active()},
+            {"is_encrypted",           ctx.config.fhe_enabled && ctx.fhe.is_active()},
             {"error",                  nullptr}
         }).dump(), "application/json");
     });

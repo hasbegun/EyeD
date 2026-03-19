@@ -5,17 +5,28 @@
 #include <string>
 
 struct Config {
+    std::string mode = "prod";         // "dev" | "test" | "prod" — safe default
     int port = 7000;
     std::string db_url;
+    std::string db_name;               // Resolved from EYED_DB_NAME_FILE secret
     std::string pipeline_config = "/src/libiris/pipeline.yaml";
     double match_threshold = 0.39;
     double dedup_threshold = 0.32;
-    bool fhe_enabled = true;           // Enable FHE encryption of iris templates
+    bool fhe_enabled = true;           // Enable FHE encryption (runtime-toggleable in dev/test)
     std::string he_key_dir = "/keys";  // Directory for FHE key storage
-    bool allow_plaintext = false;      // Allow plaintext mode (fallback if FHE init fails)
+    bool allow_plaintext = false;      // Plaintext fallback if FHE init fails
+    std::string fhe_state_path = "/config/fhe_state";  // Persists dev/test FHE toggle
 
     static Config from_env() {
         Config c;
+
+        // 1. Read mode first — it sets secure defaults for other fields
+        if (auto* v = std::getenv("EYED_MODE")) c.mode = v;
+
+        // 2. Apply mode-based defaults before explicit env overrides
+        c.allow_plaintext = (c.mode == "dev" || c.mode == "test");
+
+        // 3. Explicit env vars override mode defaults
         if (auto* v = std::getenv("EYED_PORT")) c.port = std::atoi(v);
         if (auto* v = std::getenv("EYED_DB_URL")) c.db_url = v;
         if (auto* v = std::getenv("EYED_PIPELINE_CONFIG")) c.pipeline_config = v;
@@ -30,8 +41,11 @@ struct Config {
             std::string val(v);
             c.allow_plaintext = (val == "true" || val == "1" || val == "yes");
         }
+        if (auto* v = std::getenv("EYED_FHE_STATE_PATH")) c.fhe_state_path = v;
 
-        c.db_url = inject_secrets(c.db_url);
+        // 4. Resolve secrets and build db_url
+        c.db_name = read_secret("EYED_DB_NAME_FILE");
+        c.db_url  = inject_secrets(c.db_url);
         return c;
     }
 

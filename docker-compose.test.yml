@@ -1,0 +1,7 @@
+# Test overlay — overrides the db_name_engine2 secret to use eyed_test database.
+# Usage (via Makefile): make up-test
+# Direct: EYED_MODE=test docker compose -f docker-compose.yml -f docker-compose.test.yml --profile test up
+
+secrets:
+  db_name_engine2:
+    file: ./secrets/db_name_engine2_test.txt

@@ -43,6 +43,10 @@ TEST_CASE("Config default values") {
     unsetenv("EYED_DB_USER_FILE");
     unsetenv("EYED_DB_NAME_FILE");
     unsetenv("EYED_DB_PASSWORD_FILE");
+    unsetenv("EYED_MODE");
+    unsetenv("EYED_FHE_ENABLED");
+    unsetenv("EYED_ALLOW_PLAINTEXT");
+    unsetenv("EYED_FHE_STATE_PATH");
 
     auto config = Config::from_env();
 
@@ -51,6 +55,12 @@ TEST_CASE("Config default values") {
     CHECK(config.pipeline_config == "/src/libiris/pipeline.yaml");
     CHECK(config.match_threshold == doctest::Approx(0.39));
     CHECK(config.dedup_threshold == doctest::Approx(0.32));
+    // Safe-by-default: absent EYED_MODE → prod
+    CHECK(config.mode == "prod");
+    CHECK(config.fhe_enabled == true);
+    CHECK(config.allow_plaintext == false);
+    CHECK(config.fhe_state_path == "/config/fhe_state");
+    CHECK(config.db_name.empty());
 }
 
 TEST_CASE("Config port override") {
@@ -210,5 +220,123 @@ TEST_CASE("Config nonexistent secret file") {
 
     // Nonexistent file should leave placeholder unchanged
     CHECK(config.db_url == "postgresql://__DB_USER__@localhost:5432/db");
+}
+
+// ---------------------------------------------------------------------------
+// T1: EYED_MODE=prod — allow_plaintext must be false (security gate S2/S8)
+// ---------------------------------------------------------------------------
+TEST_CASE("T1: prod mode - allow_plaintext defaults false") {
+    EnvGuard mode_guard("EYED_MODE", "prod");
+    unsetenv("EYED_ALLOW_PLAINTEXT");
+
+    auto config = Config::from_env();
+
+    CHECK(config.mode == "prod");
+    CHECK(config.allow_plaintext == false);
+    CHECK(config.fhe_enabled == true);
+}
+
+// ---------------------------------------------------------------------------
+// T2: EYED_MODE=dev — allow_plaintext defaults true, fhe_enabled true
+// ---------------------------------------------------------------------------
+TEST_CASE("T2: dev mode - allow_plaintext defaults true") {
+    EnvGuard mode_guard("EYED_MODE", "dev");
+    unsetenv("EYED_ALLOW_PLAINTEXT");
+    unsetenv("EYED_FHE_ENABLED");
+
+    auto config = Config::from_env();
+
+    CHECK(config.mode == "dev");
+    CHECK(config.allow_plaintext == true);
+    CHECK(config.fhe_enabled == true);
+}
+
+// ---------------------------------------------------------------------------
+// T3: EYED_MODE=prod + EYED_ALLOW_PLAINTEXT=true — explicit env wins
+// ---------------------------------------------------------------------------
+TEST_CASE("T3: prod mode - explicit EYED_ALLOW_PLAINTEXT overrides mode default") {
+    EnvGuard mode_guard("EYED_MODE", "prod");
+    EnvGuard plain_guard("EYED_ALLOW_PLAINTEXT", "true");
+
+    auto config = Config::from_env();
+
+    CHECK(config.mode == "prod");
+    CHECK(config.allow_plaintext == true);
+}
+
+// ---------------------------------------------------------------------------
+// Safe-by-default: no EYED_MODE set → behaves as prod
+// ---------------------------------------------------------------------------
+TEST_CASE("Safe-by-default: absent EYED_MODE acts as prod") {
+    unsetenv("EYED_MODE");
+    unsetenv("EYED_ALLOW_PLAINTEXT");
+
+    auto config = Config::from_env();
+
+    CHECK(config.mode == "prod");
+    CHECK(config.allow_plaintext == false);
+}
+
+// ---------------------------------------------------------------------------
+// test mode behaves like dev for allow_plaintext
+// ---------------------------------------------------------------------------
+TEST_CASE("test mode - allow_plaintext defaults true") {
+    EnvGuard mode_guard("EYED_MODE", "test");
+    unsetenv("EYED_ALLOW_PLAINTEXT");
+
+    auto config = Config::from_env();
+
+    CHECK(config.mode == "test");
+    CHECK(config.allow_plaintext == true);
+}
+
+// ---------------------------------------------------------------------------
+// fhe_state_path: default and override
+// ---------------------------------------------------------------------------
+TEST_CASE("fhe_state_path default is /config/fhe_state") {
+    unsetenv("EYED_FHE_STATE_PATH");
+    auto config = Config::from_env();
+    CHECK(config.fhe_state_path == "/config/fhe_state");
+}
+
+TEST_CASE("fhe_state_path override via EYED_FHE_STATE_PATH") {
+    EnvGuard guard("EYED_FHE_STATE_PATH", "/tmp/my_fhe_state");
+    auto config = Config::from_env();
+    CHECK(config.fhe_state_path == "/tmp/my_fhe_state");
+}
+
+// ---------------------------------------------------------------------------
+// db_name populated from EYED_DB_NAME_FILE secret
+// ---------------------------------------------------------------------------
+TEST_CASE("db_name populated from secret file") {
+    auto temp_dir = std::filesystem::temp_directory_path();
+    auto name_file = temp_dir / "test_db_name_mode.txt";
+    std::ofstream(name_file) << "eyed_dev";
+
+    EnvGuard name_guard("EYED_DB_NAME_FILE", name_file.c_str());
+    auto config = Config::from_env();
+
+    CHECK(config.db_name == "eyed_dev");
+
+    std::filesystem::remove(name_file);
+}
+
+TEST_CASE("db_name empty when no secret file") {
+    unsetenv("EYED_DB_NAME_FILE");
+    auto config = Config::from_env();
+    CHECK(config.db_name.empty());
+}
+
+// ---------------------------------------------------------------------------
+// EYED_FHE_ENABLED=false overrides mode default
+// ---------------------------------------------------------------------------
+TEST_CASE("EYED_FHE_ENABLED=false overrides dev mode default") {
+    EnvGuard mode_guard("EYED_MODE", "dev");
+    EnvGuard fhe_guard("EYED_FHE_ENABLED", "false");
+
+    auto config = Config::from_env();
+
+    CHECK(config.mode == "dev");
+    CHECK(config.fhe_enabled == false);
 }
 

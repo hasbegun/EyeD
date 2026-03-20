@@ -11,8 +11,11 @@ RUN flutter pub get
 COPY . .
 RUN dart pub add build_runner && \
     dart run build_runner build --delete-conflicting-outputs
+ARG EYED_MODE=prod
 RUN flutter clean && \
-    flutter build web --release --dart-define=API_MODE=proxy
+    flutter build web --release \
+        --dart-define=API_MODE=proxy \
+        --dart-define=EYED_MODE=${EYED_MODE}
 
 # ---- Stage 2: Serve with nginx ----
 FROM nginx:stable-alpine

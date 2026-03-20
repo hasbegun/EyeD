@@ -68,6 +68,21 @@ class ApiClient {
         .delete<void>('/gallery/delete/${Uri.encodeComponent(identityId)}');
   }
 
+  // --- Config ---
+
+  Future<Map<String, dynamic>> getConfig() async {
+    final r = await _engine.get<Map<String, dynamic>>('/config');
+    return r.data!;
+  }
+
+  Future<Map<String, dynamic>> toggleFhe(bool enabled) async {
+    final r = await _engine.post<Map<String, dynamic>>(
+      '/config/fhe',
+      data: {'enabled': enabled},
+    );
+    return r.data!;
+  }
+
   // --- Analyze (for detect) ---
 
   Future<AnalyzeResponse> analyzeImage(Uint8List imageBytes, String eyeSide) async {

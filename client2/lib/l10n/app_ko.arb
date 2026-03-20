@@ -72,5 +72,10 @@
   "logHeaderStatus": "상태",
   "logHeaderLatency": "지연시간",
   "logEmpty": "탐지 결과가 없습니다.",
-  "logClear": "로그 삭제"
+  "logClear": "로그 삭제",
+
+  "devBadge": "개발",
+  "fheOn": "FHE 켜짐",
+  "fheOff": "FHE 꺼짐",
+  "fheToggleError": "FHE 전환 실패"
 }

@@ -52,11 +52,10 @@ ENV ONNXRUNTIME_ROOT=/opt/onnxruntime
 # =============================================================================
 FROM base-deps AS openfhe
 
-ARG OPENFHE_VERSION=v1.4.2
-
-RUN git clone --depth 1 --branch ${OPENFHE_VERSION} \
-    https://github.com/openfheorg/openfhe-development.git /tmp/openfhe && \
-    cmake -S /tmp/openfhe -B /tmp/openfhe/build \
+# Copy OpenFHE from local 3rd-party dir (no network required)
+# Supplied via additional_contexts.openfhe-src in docker-compose.yml
+COPY --from=openfhe-src . /tmp/openfhe/
+RUN cmake -S /tmp/openfhe -B /tmp/openfhe/build \
         -G Ninja \
         -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_INSTALL_PREFIX=/opt/openfhe \

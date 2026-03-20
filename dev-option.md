@@ -351,13 +351,14 @@ up-test:      ## Start in test mode (auto-includes integration-test profile)
 >   ways, verify gallery matching succeeds for both plaintext and encrypted
 >   entries without error (steps 12–15).
 
-### Phase 3 — client2
-18. Update client2 `Dockerfile` to accept and pass `EYED_MODE` build arg.
-19. Create `lib/config/mode_config.dart`.
-20. Create `lib/providers/fhe_provider.dart` (reads/toggles FHE via API).
-21. Update `lib/app.dart` — add DEV badge and FHE toggle chip (dev mode only).
-22. Update `lib/services/api_client.dart` — add `getConfig()` and `toggleFhe()`.
-23. Add localisation strings for new UI elements.
+### Phase 3 — client2 ✅ DONE
+18. ✅ Update client2 `Dockerfile`: `ARG EYED_MODE=prod`; pass as `--dart-define=EYED_MODE=${EYED_MODE}` to `flutter build web`.
+19. ✅ Create `lib/config/mode_config.dart`: all `const` compile-time values (`mode`, `isDev`, `isTest`, `isProd`, `showDevTools`); safe-by-default (`prod`); immune to runtime devtools manipulation (S4).
+20. ✅ Create `lib/providers/fhe_provider.dart`: `FheState` model; `FheNotifier` loads via `GET /config`, toggles via `POST /config/fhe` with optimistic `isToggling` flag and persist-on-confirm; `fheProvider` lazy-initialises (never created in prod).
+21. ✅ Update `lib/app.dart`: `_DevBadge` (amber chip, l10n string) and `_FheToggle` (`ActionChip` with lock icon, green/orange colouring, SnackBar on error) both guarded by `if (ModeConfig.showDevTools)` — tree-shaken in prod builds.
+22. ✅ Update `lib/services/api_client.dart`: added `getConfig()` → `GET /config` and `toggleFhe(bool)` → `POST /config/fhe`.
+23. ✅ Add l10n strings (`devBadge`, `fheOn`, `fheOff`, `fheToggleError`) to `app_en.arb`, `app_ko.arb`, and all three generated Dart files.
+24. ✅ Fix `test/widget_test.dart` (was referencing non-existent `MyApp`); replace with `ModeConfig` unit tests + prod-mode widget tests (no DEV badge, no FHE chip in default test env).
 
 > 🔒 **Security gate — Phase 3**
 > - **S7** (Dart-Define Mode Tampering): build client2 with `EYED_MODE=dev`
@@ -369,18 +370,52 @@ up-test:      ## Start in test mode (auto-includes integration-test profile)
 >   browser dev-tools manipulation — all checks are `const` dart-defines
 >   compiled in at build time (step 18–19).
 
-### Phase 4 — Verification
-24. Test dev mode: toggle FHE off → enroll → verify template visible in gallery.
-25. Test dev mode: toggle FHE on → enroll → verify "encrypted" badge, no preview.
-26. Test prod mode (`make up`) → verify `POST /config/fhe` returns 404.
-27. Test prod mode → verify `GET /config` returns no sensitive fields.
-28. Test prod mode → verify `allow_plaintext=false`, templates always encrypted.
-29. Test test mode → integration tests auto-start and pass.
-30. Test FHE toggle persistence → restart container in dev → verify toggle state preserved.
-31. Test database isolation → dev enroll → verify data only in `eyed_dev`, not in `eyed`.
+### Phase 4 — Verification ✅ DONE (automated) / 🔲 manual E2E pending
+
+#### Automated — run `make verify-all` against a live stack
+
+| Step | Command | Tests |
+|---|---|---|
+| S1 | `make verify-s1` | `POST /config/fhe` → 404 in prod |
+| S2 | `make verify-s2` | `GET /config` has exactly `gallery_size`, `db_connected`, `version` |
+| S3 | `make verify-s3` / `make verify-db-isolation` | Row counts per mode database |
+| S6 | `make verify-s6` | Last 30 engine2 log lines — warn-only in prod |
+| A1 | `make verify-dev-config` | Full config returned in dev |
+| A2 | `make verify-prod-config` | Minimal config returned in prod |
+| A3/A4 | `make verify-fhe-toggle` | FHE toggle round-trip in dev; 404 in prod |
+| S8 | `make verify-fhe-persist` | Reads `/config/fhe_state` from running container |
+
+#### C++ unit tests added to `tests/test_config.cpp`
+
+| ID | Test case | Assertion |
+|---|---|---|
+| T1 | `T1: prod mode - allow_plaintext defaults false` | `mode=="prod"`, `allow_plaintext==false`, `fhe_enabled==true` |
+| T2 | `T2: dev mode - allow_plaintext defaults true` | `mode=="dev"`, `allow_plaintext==true`, `fhe_enabled==true` |
+| T3 | `T3: prod mode - explicit EYED_ALLOW_PLAINTEXT overrides mode default` | `allow_plaintext==true` when explicitly set |
+| — | `Safe-by-default: absent EYED_MODE acts as prod` | `mode=="prod"`, `allow_plaintext==false` |
+| — | `test mode - allow_plaintext defaults true` | `mode=="test"`, `allow_plaintext==true` |
+| — | `fhe_state_path default is /config/fhe_state` | default path |
+| — | `fhe_state_path override via EYED_FHE_STATE_PATH` | env override respected |
+| — | `db_name populated from secret file` | reads `EYED_DB_NAME_FILE` |
+| — | `EYED_FHE_ENABLED=false overrides dev mode default` | `fhe_enabled==false` |
+| — | Updated `Config default values` | now also asserts `mode`, `allow_plaintext`, `fhe_state_path`, `db_name` |
+
+Run with: `make test-iris-engine2-container`
+
+#### Manual E2E steps (require running stack)
+
+24. 🔲 `make up-dev` → toggle FHE off → enroll → gallery shows iris code image.
+25. 🔲 Toggle FHE on → enroll → gallery shows "Encrypted (FHE)" badge, no preview.
+26. 🔲 `make up` (prod) → `make verify-s1` passes.
+27. 🔲 `make up` (prod) → `make verify-s2` passes.
+28. 🔲 `make up` (prod) → enroll → `GET /gallery/template/:id` → `is_encrypted=true`.
+29. 🔲 `make up-test` → `make test-integration` passes.
+30. 🔲 `make up-dev` → toggle FHE off → `docker compose restart iris-engine2` → `make verify-fhe-persist` → state preserved.
+31. 🔲 `make up-dev` → enroll → `make verify-db-isolation` → prod `eyed` count unchanged.
 
 > 🔒 **Security gate — Phase 4** (full regression)
-> - Run all S1–S8 checks in sequence against a clean deployment.
+> - Run `make verify-all` against prod (`make up`) — all automated gates must pass.
+> - Run manual E2E steps 24–31 for release sign-off.
 > - Any failure blocks release.
 
 ---

@@ -125,7 +125,7 @@ int main() {
     }
 
     // --- Register routes ---
-    eyed::ServerContext ctx{config, pipeline, pipeline_mutex, fhe, db, gallery};
+    eyed::ServerContext ctx{config, pipeline, pipeline_mutex, fhe, db, gallery, {}};
     httplib::Server svr;
 
     eyed::register_health_routes (svr, ctx);

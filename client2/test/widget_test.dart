@@ -1,30 +1,58 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:client2/main.dart';
+import 'package:client2/app.dart';
+import 'package:client2/config/mode_config.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  // ---------------------------------------------------------------------------
+  // ModeConfig unit tests
+  // ---------------------------------------------------------------------------
+  group('ModeConfig', () {
+    test('defaults to prod when no --dart-define is supplied', () {
+      // During `flutter test` without --dart-define=EYED_MODE, the value is
+      // the defaultValue ('prod').
+      expect(ModeConfig.mode, 'prod');
+      expect(ModeConfig.isProd, isTrue);
+      expect(ModeConfig.isDev, isFalse);
+      expect(ModeConfig.isTest, isFalse);
+      expect(ModeConfig.showDevTools, isFalse);
+    });
+  });
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+  // ---------------------------------------------------------------------------
+  // Widget smoke test — runs in the default prod test environment
+  // ---------------------------------------------------------------------------
+  group('EyeDApp (prod mode — default test env)', () {
+    testWidgets('renders without crashing', (WidgetTester tester) async {
+      await tester.pumpWidget(
+        const ProviderScope(child: EyeDApp()),
+      );
+      await tester.pump();
+      expect(find.text('EyeD'), findsOneWidget);
+    });
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
+    testWidgets('DEV badge is absent in prod mode', (WidgetTester tester) async {
+      await tester.pumpWidget(
+        const ProviderScope(child: EyeDApp()),
+      );
+      await tester.pump();
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+      // ModeConfig.showDevTools == false → _DevBadge never built
+      // 'DEV' text must not appear anywhere in the tree
+      expect(find.text('DEV'), findsNothing);
+    });
+
+    testWidgets('FHE toggle chip is absent in prod mode', (WidgetTester tester) async {
+      await tester.pumpWidget(
+        const ProviderScope(child: EyeDApp()),
+      );
+      await tester.pump();
+
+      // ActionChip for FHE is not in the tree in prod
+      expect(find.text('FHE On'),  findsNothing);
+      expect(find.text('FHE Off'), findsNothing);
+    });
   });
 }

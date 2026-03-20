@@ -36,6 +36,7 @@ services:
       target: runtime
       additional_contexts:
         libiris: ./iris-engine2/.libiris
+        openfhe-src: ./3rd-party/openfhe_1-4-2/openfhe-development
       args:
         EYED_MODE: ${EYED_MODE:-prod}
     ports:
@@ -71,6 +72,8 @@ services:
     build:
       context: .
       dockerfile: key-service/Dockerfile
+      additional_contexts:
+        openfhe-src: ./3rd-party/openfhe_1-4-2/openfhe-development
     depends_on:
       - nats
     environment:

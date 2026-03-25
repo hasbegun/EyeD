@@ -130,14 +130,14 @@ class _ShellState extends ConsumerState<_Shell> {
   }
 }
 
-/// Amber "DEV" badge in the AppBar — compiled in only when
+/// Amber mode badge (DEV/TEST) in the AppBar — compiled in only when
 /// [ModeConfig.showDevTools] is true (const-guarded, tree-shaken in prod).
 class _DevBadge extends StatelessWidget {
   const _DevBadge();
 
   @override
   Widget build(BuildContext context) {
-    final l = AppLocalizations.of(context);
+    final modeLabel = ModeConfig.mode.toUpperCase();
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
       decoration: BoxDecoration(
@@ -145,7 +145,7 @@ class _DevBadge extends StatelessWidget {
         borderRadius: BorderRadius.circular(4),
       ),
       child: Text(
-        l.devBadge,
+        modeLabel,
         style: const TextStyle(
           color: Colors.white,
           fontSize: 11,

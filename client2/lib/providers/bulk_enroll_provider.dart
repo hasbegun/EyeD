@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
@@ -7,12 +8,27 @@ import 'package:uuid/uuid.dart';
 import 'api_client_provider.dart';
 import 'gallery_provider.dart';
 
+class BulkPickedFile {
+  final String relativePath;
+  final Uint8List bytes;
+
+  const BulkPickedFile({required this.relativePath, required this.bytes});
+}
+
 class BulkSubject {
   final String name;
   final String? leftPath;
   final String? rightPath;
+  final Uint8List? leftBytes;
+  final Uint8List? rightBytes;
 
-  const BulkSubject({required this.name, this.leftPath, this.rightPath});
+  const BulkSubject({
+    required this.name,
+    this.leftPath,
+    this.rightPath,
+    this.leftBytes,
+    this.rightBytes,
+  });
 }
 
 class BulkEnrollState {
@@ -117,6 +133,62 @@ class BulkEnrollNotifier extends StateNotifier<BulkEnrollState> {
     );
   }
 
+  /// Scan browser-picked files from a selected directory.
+  ///
+  /// Expected relative structure: <root>/<subject>/<l|r>/<image-file>
+  Future<void> scanPickedFiles(List<BulkPickedFile> pickedFiles,
+      {String? selectedLabel}) async {
+    final bySubject = <String, _BulkSubjectBuilder>{};
+
+    for (final picked in pickedFiles) {
+      final normalized = picked.relativePath.replaceAll('\\', '/');
+      if (!_isSupportedImage(normalized)) continue;
+
+      final parts = normalized.split('/').where((p) => p.isNotEmpty).toList();
+      if (parts.length < 3) continue;
+
+      for (var i = 1; i < parts.length - 1; i++) {
+        final side = parts[i].toLowerCase();
+        if (side != 'l' && side != 'r') continue;
+
+        final subjectName = parts[i - 1];
+        final builder = bySubject.putIfAbsent(
+            subjectName, () => _BulkSubjectBuilder(name: subjectName));
+
+        if (side == 'l' && builder.leftBytes == null) {
+          builder.leftBytes = picked.bytes;
+        } else if (side == 'r' && builder.rightBytes == null) {
+          builder.rightBytes = picked.bytes;
+        }
+        break;
+      }
+    }
+
+    final subjects = bySubject.values
+        .where((s) => s.leftBytes != null || s.rightBytes != null)
+        .map((s) => BulkSubject(
+              name: s.name,
+              leftBytes: s.leftBytes,
+              rightBytes: s.rightBytes,
+            ))
+        .toList()
+      ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+
+    state = BulkEnrollState(
+      selectedDir: selectedLabel,
+      subjects: subjects,
+      total: subjects.length,
+    );
+  }
+
+  bool _isSupportedImage(String path) {
+    final lower = path.toLowerCase();
+    return lower.endsWith('.jpg') ||
+        lower.endsWith('.jpeg') ||
+        lower.endsWith('.png') ||
+        lower.endsWith('.bmp');
+  }
+
   Future<String?> _firstImage(Directory dir) async {
     final extensions = {'.jpg', '.jpeg', '.png', '.bmp'};
     await for (final entity in dir.list()) {
@@ -150,8 +222,8 @@ class BulkEnrollNotifier extends StateNotifier<BulkEnrollState> {
         var isDuplicate = false;
 
         // Enroll left
-        if (subject.leftPath != null) {
-          final bytes = await File(subject.leftPath!).readAsBytes();
+        if (subject.leftPath != null || subject.leftBytes != null) {
+          final bytes = subject.leftBytes ?? await File(subject.leftPath!).readAsBytes();
           final resp = await client.enroll(
             jpegB64: base64Encode(bytes),
             eyeSide: 'left',
@@ -166,8 +238,9 @@ class BulkEnrollNotifier extends StateNotifier<BulkEnrollState> {
         }
 
         // Enroll right (skip if left was duplicate)
-        if (subject.rightPath != null && !isDuplicate) {
-          final bytes = await File(subject.rightPath!).readAsBytes();
+        if ((subject.rightPath != null || subject.rightBytes != null) && !isDuplicate) {
+          final bytes =
+              subject.rightBytes ?? await File(subject.rightPath!).readAsBytes();
           final resp = await client.enroll(
             jpegB64: base64Encode(bytes),
             eyeSide: 'right',
@@ -207,6 +280,14 @@ class BulkEnrollNotifier extends StateNotifier<BulkEnrollState> {
   void reset() {
     state = const BulkEnrollState();
   }
+}
+
+class _BulkSubjectBuilder {
+  final String name;
+  Uint8List? leftBytes;
+  Uint8List? rightBytes;
+
+  _BulkSubjectBuilder({required this.name});
 }
 
 final bulkEnrollProvider =

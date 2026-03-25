@@ -1,9 +1,11 @@
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../l10n/app_localizations.dart';
 import '../providers/bulk_enroll_provider.dart';
+import '../services/bulk_directory_picker.dart';
 
 class BulkTab extends ConsumerWidget {
   const BulkTab({super.key});
@@ -29,10 +31,21 @@ class BulkTab extends ConsumerWidget {
                     onPressed: st.running
                         ? null
                         : () async {
-                            final dir =
-                                await FilePicker.platform.getDirectoryPath();
-                            if (dir != null) {
-                              await notifier.scanDirectory(dir);
+                            if (kIsWeb) {
+                              final pickedFiles = await pickBulkDirectoryFiles();
+                              if (pickedFiles.isNotEmpty) {
+                                final root = pickedFiles.first.relativePath.split('/').first;
+                                await notifier.scanPickedFiles(
+                                  pickedFiles,
+                                  selectedLabel: root,
+                                );
+                              }
+                            } else {
+                              final dir =
+                                  await FilePicker.platform.getDirectoryPath();
+                              if (dir != null) {
+                                await notifier.scanDirectory(dir);
+                              }
                             }
                           },
                     icon: const Icon(Icons.folder_open, size: 18),

@@ -78,20 +78,24 @@ class _ShellState extends ConsumerState<_Shell> {
             const _DevBadge(),
             const SizedBox(width: 8),
             const _FheToggle(),
-            const SizedBox(width: 4),
+            const SizedBox(width: 8),
           ],
-          TextButton(
-            onPressed: () {
-              final next = locale.languageCode == 'en'
-                  ? const Locale('ko')
-                  : const Locale('en');
-              ref.read(localeProvider.notifier).state = next;
-            },
-            child: Text(
-              locale.languageCode == 'en' ? '한국어' : 'EN',
-              style: TextStyle(
-                color: theme.colorScheme.onSurface,
-              ),
+          DropdownButtonHideUnderline(
+            child: DropdownButton<String>(
+              value: locale.languageCode,
+              isDense: true,
+              borderRadius: BorderRadius.circular(8),
+              dropdownColor: theme.colorScheme.surface,
+              iconEnabledColor: theme.colorScheme.onSurface,
+              style: TextStyle(color: theme.colorScheme.onSurface),
+              items: const [
+                DropdownMenuItem(value: 'en', child: Text('EN')),
+                DropdownMenuItem(value: 'ko', child: Text('KO')),
+              ],
+              onChanged: (value) {
+                if (value == null) return;
+                ref.read(localeProvider.notifier).state = Locale(value);
+              },
             ),
           ),
           const SizedBox(width: 8),

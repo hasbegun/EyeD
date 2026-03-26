@@ -156,12 +156,10 @@ services:
         condition: service_healthy
     volumes:
       - ./data:/data:ro
-    entrypoint: /app/integration-test
+    entrypoint: /app/integration_test
     command:
-      - -gateway=gateway:50051
-      - -nats=nats://nats:4222
-      - -image=/data/Iris/CASIA1/1/001_1_1.jpg
-      - -timeout=120s
+      - gateway
+      - "50051"
 
 secrets:
   db_user:

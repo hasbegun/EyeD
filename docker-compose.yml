@@ -35,7 +35,6 @@ services:
       context: ./iris-engine2
       target: runtime
       additional_contexts:
-        libiris: ./iris-engine2/.libiris
         openfhe-src: ./3rd-party/openfhe_1-4-2/openfhe-development
       args:
         EYED_MODE: ${EYED_MODE:-prod}

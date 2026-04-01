@@ -21,7 +21,6 @@ build/
 
 # CMake
 iris-engine2/build/
-iris-engine2/.libiris/
 
 # Flutter / Dart
 client2/.dart_tool/

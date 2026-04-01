@@ -1,0 +1,3 @@
+[submodule "iris-engine2/.libiris"]
+	path = iris-engine2/.libiris
+	url = git@github.com:hasbegun/BiometricLib.git

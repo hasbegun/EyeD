@@ -83,8 +83,8 @@ ENV OpenFHE_DIR=/opt/openfhe/lib/OpenFHE
 
 WORKDIR /src
 
-# Copy libiris from additional build context (resolves symlink via docker-compose)
-COPY --from=libiris . libiris/
+# Copy libiris from submodule (via main build context)
+COPY .libiris/iris/ libiris/
 
 # Copy service source
 COPY CMakeLists.txt .
@@ -154,8 +154,8 @@ ENV OpenFHE_DIR=/opt/openfhe/lib/OpenFHE
 
 WORKDIR /src
 
-# Copy libiris
-COPY --from=libiris . libiris/
+# Copy libiris from submodule
+COPY .libiris/iris/ libiris/
 
 # Copy test source and CMakeLists
 COPY CMakeLists.txt .

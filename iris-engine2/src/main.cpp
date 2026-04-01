@@ -1,7 +1,7 @@
 #include "config.h"
 #include "db.h"
-#include "fhe.h"
 #include "gallery.h"
+#include "smpc.h"
 #include "server_context.h"
 #include "routes_health.h"
 #include "routes_analyze.h"
@@ -40,26 +40,33 @@ int main() {
     std::mutex pipeline_mutex;
     std::cout << "[iris-engine2] Pipeline loaded" << std::endl;
 
-    // --- Initialize FHE ---
-    FHEManager fhe;
-    if (config.fhe_enabled) {
-        std::cout << "[iris-engine2] FHE enabled, initializing..." << std::endl;
-        if (!fhe.initialize(config.he_key_dir)) {
-            if (!config.allow_plaintext) {
-                std::cerr << "[iris-engine2] FATAL: FHE initialization failed "
-                          << "and EYED_ALLOW_PLAINTEXT is not set" << std::endl;
+    // --- Initialize SMPC ---
+    SMPCManager smpc;
+    if (config.smpc_enabled) {
+        std::cout << "[iris-engine2] SMPC enabled (mode=" << config.smpc_mode
+                  << "), initializing..." << std::endl;
+        SMPCManager::SecurityConfig sec_cfg;
+        sec_cfg.tls_cert_dir = config.tls_cert_dir;
+        sec_cfg.audit_log_path = config.audit_log_path;
+        sec_cfg.security_monitor_enabled = config.security_monitor_enabled;
+
+        if (!smpc.initialize(config.smpc_mode, config.nats_url,
+                             config.smpc_num_parties,
+                             config.smpc_pipeline_depth,
+                             config.smpc_shards_per_participant,
+                             sec_cfg)) {
+            if (config.smpc_fallback_plaintext) {
+                std::cerr << "[iris-engine2] WARNING: SMPC init failed, "
+                          << "falling back to plaintext matching "
+                          << "(EYED_SMPC_FALLBACK_PLAINTEXT=true)" << std::endl;
+            } else {
+                std::cerr << "[iris-engine2] FATAL: SMPC initialization failed"
+                          << std::endl;
                 return 1;
             }
-            std::cerr << "[iris-engine2] WARNING: FHE init failed, "
-                      << "falling back to plaintext mode" << std::endl;
         }
     } else {
-        std::cout << "[iris-engine2] FHE disabled by configuration" << std::endl;
-        if (!config.allow_plaintext) {
-            std::cerr << "[iris-engine2] FATAL: FHE is disabled but "
-                      << "EYED_ALLOW_PLAINTEXT is not set" << std::endl;
-            return 1;
-        }
+        std::cout << "[iris-engine2] SMPC disabled by configuration" << std::endl;
     }
 
     // --- Connect to database ---
@@ -74,58 +81,50 @@ int main() {
     }
 
     // --- Load gallery from DB ---
-    Gallery gallery(config.match_threshold, config.dedup_threshold,
-                    fhe.is_active() ? &fhe : nullptr);
+    Gallery gallery(config.match_threshold, config.dedup_threshold);
+    if (smpc.is_active()) {
+        if (smpc.is_distributed()) {
+            gallery.enable_smpc_distributed(&smpc);
+        } else {
+            gallery.enable_smpc(smpc.gallery());
+        }
+    }
     if (db.is_connected()) {
-#ifdef IRIS_HAS_FHE
-        if (fhe.is_active() && !config.allow_plaintext) {
-            for (auto& rt : db.load_all_raw_templates()) {
-                auto decrypted = fhe.decrypt_template(rt.iris_blob);
-                if (!decrypted) {
-                    std::cerr << "[iris-engine2] WARNING: Failed to decrypt template "
-                              << rt.template_id << ", skipping" << std::endl;
-                    continue;
-                }
-                GalleryEntry e;
-                e.template_id  = rt.template_id;
-                e.identity_id  = rt.identity_id;
-                e.identity_name = rt.identity_name;
-                e.eye_side     = rt.eye_side;
-                e.tmpl         = std::move(*decrypted);
-                gallery.add(std::move(e));
+        auto db_templates = db.load_all_templates();
+
+        // Migrate plaintext templates into SMPC shares (if SMPC is active)
+        if (smpc.is_active() && !db_templates.empty()) {
+            std::cout << "[iris-engine2] Migrating " << db_templates.size()
+                      << " DB templates into SMPC shares..." << std::endl;
+
+            std::vector<std::pair<std::string, iris::IrisTemplate>> migration_pairs;
+            migration_pairs.reserve(db_templates.size());
+            for (const auto& t : db_templates) {
+                migration_pairs.emplace_back(t.template_id, t.tmpl);
             }
-        } else
-#endif
-        {
-            for (auto& t : db.load_all_templates()) {
-                GalleryEntry e;
-                e.template_id  = t.template_id;
-                e.identity_id  = t.identity_id;
-                e.identity_name = t.identity_name;
-                e.eye_side     = t.eye_side;
-                e.tmpl         = std::move(t.tmpl);
-                gallery.add(std::move(e));
+            auto stats = smpc.migrate_templates(migration_pairs);
+            if (stats.failed > 0) {
+                std::cerr << "[iris-engine2] WARNING: " << stats.failed
+                          << " templates failed SMPC migration" << std::endl;
             }
+        }
+
+        // Add to in-memory gallery (metadata + plaintext for non-SMPC match path)
+        for (auto& t : db_templates) {
+            GalleryEntry e;
+            e.template_id   = t.template_id;
+            e.identity_id   = t.identity_id;
+            e.identity_name = t.identity_name;
+            e.eye_side      = t.eye_side;
+            e.tmpl          = std::move(t.tmpl);
+            gallery.add_metadata_only(std::move(e));
         }
         std::cout << "[iris-engine2] Gallery loaded: " << gallery.size()
                   << " templates" << std::endl;
     }
 
-    // --- Load persisted FHE toggle state (dev/test only) ---
-    if (config.mode != "prod") {
-        std::ifstream state_file(config.fhe_state_path);
-        if (state_file.good()) {
-            std::string val;
-            std::getline(state_file, val);
-            config.fhe_enabled = (val == "true" || val == "1");
-            std::cout << "[iris-engine2] FHE toggle state loaded from "
-                      << config.fhe_state_path << ": "
-                      << (config.fhe_enabled ? "enabled" : "disabled") << std::endl;
-        }
-    }
-
     // --- Register routes ---
-    eyed::ServerContext ctx{config, pipeline, pipeline_mutex, fhe, db, gallery, {}, {}};
+    eyed::ServerContext ctx{config, pipeline, pipeline_mutex, smpc, db, gallery, {}};
     httplib::Server svr;
 
     eyed::register_health_routes (svr, ctx);

@@ -64,9 +64,8 @@ void register_gallery_routes(httplib::Server& svr, ServerContext& ctx) {
 
                 json iris_code_b64 = nullptr;
                 json mask_code_b64 = nullptr;
-                bool is_encrypted  = row->is_encrypted;
 
-                if (!is_encrypted && !row->tmpl.iris_codes.empty()) {
+                if (!row->tmpl.iris_codes.empty()) {
                     auto [code_mat, mask_mat] = row->tmpl.iris_codes[0].to_mat();
 
                     code_mat *= 255;
@@ -99,7 +98,7 @@ void register_gallery_routes(httplib::Server& svr, ServerContext& ctx) {
                     {"device_id",      row->device_id},
                     {"iris_code_b64",  iris_code_b64},
                     {"mask_code_b64",  mask_code_b64},
-                    {"is_encrypted",   is_encrypted},
+                    {"smpc_protected",  ctx.smpc.is_active()},
                 }).dump(), "application/json");
             });
 

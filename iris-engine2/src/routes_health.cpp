@@ -24,7 +24,7 @@ void register_health_routes(httplib::Server& svr, ServerContext& ctx) {
             {"gallery_size",          static_cast<int>(ctx.gallery.size())},
             {"db_connected",          db_ok},
             {"redis_connected",       false},
-            {"he_active",             ctx.fhe.is_active()},
+            {"smpc_active",           ctx.smpc.is_active()},
             {"pipeline_pool_size",    1},
             {"pipeline_pool_available", 1},
             {"version",               "0.1.0"},

@@ -27,6 +27,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libeigen3-dev \
     # PostgreSQL client library
     libpq-dev \
+    # OpenSSL (for SMPC)
+    libssl-dev \
     # ONNX Runtime build deps
     wget \
     && rm -rf /var/lib/apt/lists/*
@@ -48,38 +50,9 @@ RUN ARCH=$(dpkg --print-architecture) && \
 ENV ONNXRUNTIME_ROOT=/opt/onnxruntime
 
 # =============================================================================
-# Stage 1b: openfhe — build OpenFHE from source
-# =============================================================================
-FROM base-deps AS openfhe
-
-# Copy OpenFHE from local 3rd-party dir (no network required)
-# Supplied via additional_contexts.openfhe-src in docker-compose.yml
-COPY --from=openfhe-src . /tmp/openfhe/
-RUN cmake -S /tmp/openfhe -B /tmp/openfhe/build \
-        -G Ninja \
-        -DCMAKE_BUILD_TYPE=Release \
-        -DCMAKE_INSTALL_PREFIX=/opt/openfhe \
-        -DBUILD_STATIC=ON \
-        -DBUILD_SHARED=OFF \
-        -DWITH_BE2=ON \
-        -DWITH_BE4=OFF \
-        -DWITH_NTL=OFF \
-        -DBUILD_UNITTESTS=OFF \
-        -DBUILD_EXAMPLES=OFF \
-        -DBUILD_BENCHMARKS=OFF \
-        -DNATIVE_SIZE=64 && \
-    cmake --build /tmp/openfhe/build --parallel $(nproc) && \
-    cmake --install /tmp/openfhe/build && \
-    rm -rf /tmp/openfhe
-
-# =============================================================================
-# Stage 2: build — compile libiris (with FHE) + service
+# Stage 2: build — compile libiris (with SMPC) + service
 # =============================================================================
 FROM base-deps AS build
-
-# Copy OpenFHE from stage 1b
-COPY --from=openfhe /opt/openfhe /opt/openfhe
-ENV OpenFHE_DIR=/opt/openfhe/lib/OpenFHE
 
 WORKDIR /src
 
@@ -89,6 +62,7 @@ COPY .libiris/iris/ libiris/
 # Copy service source
 COPY CMakeLists.txt .
 COPY src/ src/
+COPY smpc-party/ smpc-party/
 
 # Mode-based build flags:
 #   dev  → Release (fast iteration)
@@ -128,12 +102,6 @@ COPY --from=build /src/build/iris-engine2 /usr/local/bin/iris-engine2
 # Copy pipeline config
 COPY --from=build /src/libiris/pipeline.yaml /src/libiris/pipeline.yaml
 
-# FHE key directory (mounted at runtime via docker-compose volume)
-RUN mkdir -p /keys && chown iris:iris /keys
-
-# Config directory for FHE toggle persistence (mounted as fhe-config volume)
-RUN mkdir -p /config && chown iris:iris /config
-
 RUN ldconfig
 
 USER iris
@@ -148,10 +116,6 @@ CMD ["iris-engine2"]
 # =============================================================================
 FROM base-deps AS test
 
-# Copy OpenFHE for FHE-enabled tests
-COPY --from=openfhe /opt/openfhe /opt/openfhe
-ENV OpenFHE_DIR=/opt/openfhe/lib/OpenFHE
-
 WORKDIR /src
 
 # Copy libiris from submodule
@@ -160,9 +124,10 @@ COPY .libiris/iris/ libiris/
 # Copy test source and CMakeLists
 COPY CMakeLists.txt .
 COPY src/ src/
+COPY smpc-party/ smpc-party/
 COPY tests/ tests/
 
-# Configure with tests enabled (FHE enabled via CMakeLists.txt)
+# Configure with tests enabled (SMPC enabled via CMakeLists.txt)
 RUN cmake -S . -B build \
     -G Ninja \
     -DCMAKE_BUILD_TYPE=Debug \

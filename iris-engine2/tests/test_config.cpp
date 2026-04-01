@@ -44,9 +44,14 @@ TEST_CASE("Config default values") {
     unsetenv("EYED_DB_NAME_FILE");
     unsetenv("EYED_DB_PASSWORD_FILE");
     unsetenv("EYED_MODE");
-    unsetenv("EYED_FHE_ENABLED");
-    unsetenv("EYED_ALLOW_PLAINTEXT");
-    unsetenv("EYED_FHE_STATE_PATH");
+    unsetenv("EYED_SMPC_ENABLED");
+    unsetenv("EYED_SMPC_MODE");
+    unsetenv("EYED_NATS_URL");
+    unsetenv("EYED_SMPC_NUM_PARTIES");
+    unsetenv("EYED_TLS_CERT_DIR");
+    unsetenv("EYED_AUDIT_LOG_PATH");
+    unsetenv("EYED_SECURITY_MONITOR");
+    unsetenv("EYED_SMPC_FALLBACK_PLAINTEXT");
 
     auto config = Config::from_env();
 
@@ -57,9 +62,16 @@ TEST_CASE("Config default values") {
     CHECK(config.dedup_threshold == doctest::Approx(0.32));
     // Safe-by-default: absent EYED_MODE → prod
     CHECK(config.mode == "prod");
-    CHECK(config.fhe_enabled == true);
-    CHECK(config.allow_plaintext == false);
-    CHECK(config.fhe_state_path == "/config/fhe_state");
+    CHECK(config.smpc_enabled == true);
+    CHECK(config.smpc_mode == "distributed");
+    CHECK(config.nats_url.empty());
+    CHECK(config.smpc_num_parties == 3);
+    CHECK(config.smpc_pipeline_depth == 0);
+    CHECK(config.smpc_shards_per_participant == 0);
+    CHECK(config.tls_cert_dir.empty());
+    CHECK(config.audit_log_path.empty());
+    CHECK(config.security_monitor_enabled == false);
+    CHECK(config.smpc_fallback_plaintext == false);
     CHECK(config.db_name.empty());
 }
 
@@ -223,45 +235,45 @@ TEST_CASE("Config nonexistent secret file") {
 }
 
 // ---------------------------------------------------------------------------
-// T1: EYED_MODE=prod — allow_plaintext must be false (security gate S2/S8)
+// T1: EYED_MODE=prod — smpc_mode defaults to "distributed"
 // ---------------------------------------------------------------------------
-TEST_CASE("T1: prod mode - allow_plaintext defaults false") {
+TEST_CASE("T1: prod mode - smpc_mode defaults distributed") {
     EnvGuard mode_guard("EYED_MODE", "prod");
-    unsetenv("EYED_ALLOW_PLAINTEXT");
+    unsetenv("EYED_SMPC_MODE");
 
     auto config = Config::from_env();
 
     CHECK(config.mode == "prod");
-    CHECK(config.allow_plaintext == false);
-    CHECK(config.fhe_enabled == true);
+    CHECK(config.smpc_enabled == true);
+    CHECK(config.smpc_mode == "distributed");
 }
 
 // ---------------------------------------------------------------------------
-// T2: EYED_MODE=dev — allow_plaintext defaults true, fhe_enabled true
+// T2: EYED_MODE=dev — smpc_mode defaults to "simulated"
 // ---------------------------------------------------------------------------
-TEST_CASE("T2: dev mode - allow_plaintext defaults true") {
+TEST_CASE("T2: dev mode - smpc_mode defaults simulated") {
     EnvGuard mode_guard("EYED_MODE", "dev");
-    unsetenv("EYED_ALLOW_PLAINTEXT");
-    unsetenv("EYED_FHE_ENABLED");
+    unsetenv("EYED_SMPC_MODE");
+    unsetenv("EYED_SMPC_ENABLED");
 
     auto config = Config::from_env();
 
     CHECK(config.mode == "dev");
-    CHECK(config.allow_plaintext == true);
-    CHECK(config.fhe_enabled == true);
+    CHECK(config.smpc_mode == "simulated");
+    CHECK(config.smpc_enabled == true);
 }
 
 // ---------------------------------------------------------------------------
-// T3: EYED_MODE=prod + EYED_ALLOW_PLAINTEXT=true — explicit env wins
+// T3: EYED_MODE=prod + explicit EYED_SMPC_MODE overrides default
 // ---------------------------------------------------------------------------
-TEST_CASE("T3: prod mode - explicit EYED_ALLOW_PLAINTEXT overrides mode default") {
+TEST_CASE("T3: prod mode - explicit EYED_SMPC_MODE overrides default") {
     EnvGuard mode_guard("EYED_MODE", "prod");
-    EnvGuard plain_guard("EYED_ALLOW_PLAINTEXT", "true");
+    EnvGuard smpc_guard("EYED_SMPC_MODE", "simulated");
 
     auto config = Config::from_env();
 
     CHECK(config.mode == "prod");
-    CHECK(config.allow_plaintext == true);
+    CHECK(config.smpc_mode == "simulated");
 }
 
 // ---------------------------------------------------------------------------
@@ -269,40 +281,41 @@ TEST_CASE("T3: prod mode - explicit EYED_ALLOW_PLAINTEXT overrides mode default"
 // ---------------------------------------------------------------------------
 TEST_CASE("Safe-by-default: absent EYED_MODE acts as prod") {
     unsetenv("EYED_MODE");
-    unsetenv("EYED_ALLOW_PLAINTEXT");
+    unsetenv("EYED_SMPC_MODE");
 
     auto config = Config::from_env();
 
     CHECK(config.mode == "prod");
-    CHECK(config.allow_plaintext == false);
+    CHECK(config.smpc_mode == "distributed");
 }
 
 // ---------------------------------------------------------------------------
-// test mode behaves like dev for allow_plaintext
+// test mode behaves like dev for smpc_mode
 // ---------------------------------------------------------------------------
-TEST_CASE("test mode - allow_plaintext defaults true") {
+TEST_CASE("test mode - smpc_mode does not auto-switch to simulated") {
     EnvGuard mode_guard("EYED_MODE", "test");
-    unsetenv("EYED_ALLOW_PLAINTEXT");
+    unsetenv("EYED_SMPC_MODE");
 
     auto config = Config::from_env();
 
     CHECK(config.mode == "test");
-    CHECK(config.allow_plaintext == true);
+    // Only dev auto-switches to simulated
+    CHECK(config.smpc_mode == "distributed");
 }
 
 // ---------------------------------------------------------------------------
-// fhe_state_path: default and override
+// NATS URL override
 // ---------------------------------------------------------------------------
-TEST_CASE("fhe_state_path default is /config/fhe_state") {
-    unsetenv("EYED_FHE_STATE_PATH");
+TEST_CASE("EYED_NATS_URL override") {
+    EnvGuard guard("EYED_NATS_URL", "nats://my-nats:4222");
     auto config = Config::from_env();
-    CHECK(config.fhe_state_path == "/config/fhe_state");
+    CHECK(config.nats_url == "nats://my-nats:4222");
 }
 
-TEST_CASE("fhe_state_path override via EYED_FHE_STATE_PATH") {
-    EnvGuard guard("EYED_FHE_STATE_PATH", "/tmp/my_fhe_state");
+TEST_CASE("EYED_SMPC_NUM_PARTIES override") {
+    EnvGuard guard("EYED_SMPC_NUM_PARTIES", "5");
     auto config = Config::from_env();
-    CHECK(config.fhe_state_path == "/tmp/my_fhe_state");
+    CHECK(config.smpc_num_parties == 5);
 }
 
 // ---------------------------------------------------------------------------
@@ -328,15 +341,63 @@ TEST_CASE("db_name empty when no secret file") {
 }
 
 // ---------------------------------------------------------------------------
-// EYED_FHE_ENABLED=false overrides mode default
+// EYED_SMPC_ENABLED=false overrides mode default
 // ---------------------------------------------------------------------------
-TEST_CASE("EYED_FHE_ENABLED=false overrides dev mode default") {
+TEST_CASE("EYED_SMPC_ENABLED=false overrides dev mode default") {
     EnvGuard mode_guard("EYED_MODE", "dev");
-    EnvGuard fhe_guard("EYED_FHE_ENABLED", "false");
+    EnvGuard smpc_guard("EYED_SMPC_ENABLED", "false");
 
     auto config = Config::from_env();
 
     CHECK(config.mode == "dev");
-    CHECK(config.fhe_enabled == false);
+    CHECK(config.smpc_enabled == false);
+}
+
+TEST_CASE("EYED_SMPC_PIPELINE_DEPTH override") {
+    EnvGuard guard("EYED_SMPC_PIPELINE_DEPTH", "4");
+    auto config = Config::from_env();
+    CHECK(config.smpc_pipeline_depth == 4);
+}
+
+TEST_CASE("EYED_SMPC_SHARDS_PER_PARTICIPANT override") {
+    EnvGuard guard("EYED_SMPC_SHARDS_PER_PARTICIPANT", "2");
+    auto config = Config::from_env();
+    CHECK(config.smpc_shards_per_participant == 2);
+}
+
+TEST_CASE("EYED_TLS_CERT_DIR override") {
+    EnvGuard guard("EYED_TLS_CERT_DIR", "/certs/smpc");
+    auto config = Config::from_env();
+    CHECK(config.tls_cert_dir == "/certs/smpc");
+}
+
+TEST_CASE("EYED_AUDIT_LOG_PATH override") {
+    EnvGuard guard("EYED_AUDIT_LOG_PATH", "/var/log/smpc_audit.log");
+    auto config = Config::from_env();
+    CHECK(config.audit_log_path == "/var/log/smpc_audit.log");
+}
+
+TEST_CASE("EYED_SECURITY_MONITOR override") {
+    EnvGuard guard("EYED_SECURITY_MONITOR", "true");
+    auto config = Config::from_env();
+    CHECK(config.security_monitor_enabled == true);
+}
+
+TEST_CASE("EYED_SECURITY_MONITOR disabled by default") {
+    unsetenv("EYED_SECURITY_MONITOR");
+    auto config = Config::from_env();
+    CHECK(config.security_monitor_enabled == false);
+}
+
+TEST_CASE("EYED_SMPC_FALLBACK_PLAINTEXT override") {
+    EnvGuard guard("EYED_SMPC_FALLBACK_PLAINTEXT", "true");
+    auto config = Config::from_env();
+    CHECK(config.smpc_fallback_plaintext == true);
+}
+
+TEST_CASE("EYED_SMPC_FALLBACK_PLAINTEXT disabled by default") {
+    unsetenv("EYED_SMPC_FALLBACK_PLAINTEXT");
+    auto config = Config::from_env();
+    CHECK(config.smpc_fallback_plaintext == false);
 }
 

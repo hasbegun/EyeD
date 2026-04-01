@@ -6,27 +6,17 @@
 #include <vector>
 
 #include <iris/core/types.hpp>
+#include <iris/crypto/smpc_gallery.hpp>
 #include <iris/nodes/batch_matcher.hpp>
 
-#ifdef IRIS_HAS_FHE
-#include <iris/crypto/encrypted_template.hpp>
-#endif
-
-class FHEManager;
+class SMPCManager;
 
 struct GalleryEntry {
     std::string template_id;
     std::string identity_id;
     std::string identity_name;
     std::string eye_side;
-    iris::IrisTemplate tmpl;  // plaintext (used when FHE is off)
-#ifdef IRIS_HAS_FHE
-    // Encrypted templates (one per scale) — used when FHE is active.
-    // Each EncryptedTemplate bundles both code_ct (iris bits) and mask_ct
-    // (validity mask bits), so a single vector covers everything.
-    std::vector<iris::EncryptedTemplate> encrypted_iris;
-#endif
-    bool is_encrypted = false;
+    iris::IrisTemplate tmpl;
 };
 
 struct GalleryMatch {
@@ -46,10 +36,26 @@ struct DuplicateCheck {
 
 class Gallery {
   public:
-    Gallery(double match_threshold, double dedup_threshold,
-            FHEManager* fhe = nullptr);
+    Gallery(double match_threshold, double dedup_threshold);
+
+    /// Enable SMPC matching via an externally-owned SMPCGallery (simulated mode).
+    /// The caller must ensure the gallery outlives this object.
+    void enable_smpc(iris::SMPCGallery* smpc_gallery);
+
+    /// Enable SMPC matching via coordinator (distributed mode).
+    /// The caller must ensure the SMPCManager outlives this object.
+    void enable_smpc_distributed(SMPCManager* smpc_manager);
+
+    /// Whether SMPC matching is active (either mode).
+    [[nodiscard]] bool smpc_active() const;
 
     void add(GalleryEntry entry);
+
+    /// Add entry to in-memory gallery only (no SMPC enrollment).
+    /// Used during startup migration when templates have already been
+    /// enrolled into SMPC via SMPCManager::migrate_templates().
+    void add_metadata_only(GalleryEntry entry);
+
     int remove(const std::string& identity_id);
 
     // Match probe against gallery. Returns nullopt if gallery is empty.
@@ -77,15 +83,18 @@ class Gallery {
     iris::BatchMatcher matcher_;
     double match_threshold_;
     double dedup_threshold_;
-    FHEManager* fhe_ = nullptr;
+    iris::SMPCGallery* smpc_gallery_ = nullptr;
+    SMPCManager* smpc_manager_ = nullptr;  // distributed mode
 
     // Find best match result (internal, caller holds lock)
     std::optional<GalleryMatch> find_best_match(
         const iris::IrisTemplate& probe, double threshold) const;
 
-#ifdef IRIS_HAS_FHE
-    // FHE-encrypted matching: probe (plaintext) vs gallery (encrypted)
-    std::optional<GalleryMatch> find_best_match_encrypted(
+    // SMPC matching path — simulated mode (internal, caller holds lock)
+    std::optional<GalleryMatch> find_best_match_smpc(
         const iris::IrisTemplate& probe, double threshold) const;
-#endif
+
+    // SMPC matching path — distributed mode via coordinator (internal, caller holds lock)
+    std::optional<GalleryMatch> find_best_match_coordinator(
+        const iris::IrisTemplate& probe, double threshold) const;
 };

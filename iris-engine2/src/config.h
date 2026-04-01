@@ -12,10 +12,18 @@ struct Config {
     std::string pipeline_config = "/src/libiris/pipeline.yaml";
     double match_threshold = 0.39;
     double dedup_threshold = 0.32;
-    bool fhe_enabled = true;           // Enable FHE encryption (runtime-toggleable in dev/test)
-    std::string he_key_dir = "/keys";  // Directory for FHE key storage
-    bool allow_plaintext = false;      // Plaintext fallback if FHE init fails
-    std::string fhe_state_path = "/config/fhe_state";  // Persists dev/test FHE toggle
+    bool smpc_enabled = true;                    // Enable SMPC template protection
+    std::string smpc_mode = "distributed";        // "simulated" | "distributed"
+    std::string nats_url;                          // NATS URL for distributed mode
+    int smpc_num_parties = 3;                      // Number of SMPC parties
+    int smpc_pipeline_depth = 0;                   // 0 = disabled, >0 = pipelined coordinator
+    int smpc_shards_per_participant = 0;           // 0 = no sharding, >0 = sharded coordinator
+
+    // Security hardening (Phase 4) — all opt-in, disabled by default
+    std::string tls_cert_dir;                      // Path to mTLS certs (empty = TLS disabled)
+    std::string audit_log_path;                    // Path to audit log file (empty = audit disabled)
+    bool security_monitor_enabled = false;         // Enable SecurityMonitor anomaly detection
+    bool smpc_fallback_plaintext = false;             // Fall back to plaintext matching if SMPC init fails
 
     static Config from_env() {
         Config c;
@@ -24,7 +32,7 @@ struct Config {
         if (auto* v = std::getenv("EYED_MODE")) c.mode = v;
 
         // 2. Apply mode-based defaults before explicit env overrides
-        c.allow_plaintext = (c.mode == "dev" || c.mode == "test");
+        if (c.mode == "dev") c.smpc_mode = "simulated";
 
         // 3. Explicit env vars override mode defaults
         if (auto* v = std::getenv("EYED_PORT")) c.port = std::atoi(v);
@@ -32,16 +40,25 @@ struct Config {
         if (auto* v = std::getenv("EYED_PIPELINE_CONFIG")) c.pipeline_config = v;
         if (auto* v = std::getenv("EYED_MATCH_THRESHOLD")) c.match_threshold = std::atof(v);
         if (auto* v = std::getenv("EYED_DEDUP_THRESHOLD")) c.dedup_threshold = std::atof(v);
-        if (auto* v = std::getenv("EYED_FHE_ENABLED")) {
+        if (auto* v = std::getenv("EYED_SMPC_ENABLED")) {
             std::string val(v);
-            c.fhe_enabled = (val == "true" || val == "1" || val == "yes");
+            c.smpc_enabled = (val == "true" || val == "1" || val == "yes");
         }
-        if (auto* v = std::getenv("EYED_HE_KEY_DIR")) c.he_key_dir = v;
-        if (auto* v = std::getenv("EYED_ALLOW_PLAINTEXT")) {
+        if (auto* v = std::getenv("EYED_SMPC_MODE")) c.smpc_mode = v;
+        if (auto* v = std::getenv("EYED_NATS_URL")) c.nats_url = v;
+        if (auto* v = std::getenv("EYED_SMPC_NUM_PARTIES")) c.smpc_num_parties = std::atoi(v);
+        if (auto* v = std::getenv("EYED_SMPC_PIPELINE_DEPTH")) c.smpc_pipeline_depth = std::atoi(v);
+        if (auto* v = std::getenv("EYED_SMPC_SHARDS_PER_PARTICIPANT")) c.smpc_shards_per_participant = std::atoi(v);
+        if (auto* v = std::getenv("EYED_TLS_CERT_DIR")) c.tls_cert_dir = v;
+        if (auto* v = std::getenv("EYED_AUDIT_LOG_PATH")) c.audit_log_path = v;
+        if (auto* v = std::getenv("EYED_SECURITY_MONITOR")) {
             std::string val(v);
-            c.allow_plaintext = (val == "true" || val == "1" || val == "yes");
+            c.security_monitor_enabled = (val == "true" || val == "1" || val == "yes");
         }
-        if (auto* v = std::getenv("EYED_FHE_STATE_PATH")) c.fhe_state_path = v;
+        if (auto* v = std::getenv("EYED_SMPC_FALLBACK_PLAINTEXT")) {
+            std::string val(v);
+            c.smpc_fallback_plaintext = (val == "true" || val == "1" || val == "yes");
+        }
 
         // 4. Resolve secrets and build db_url
         c.db_name = read_secret("EYED_DB_NAME_FILE");

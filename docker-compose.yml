@@ -34,8 +34,6 @@ services:
     build:
       context: ./iris-engine2
       target: runtime
-      additional_contexts:
-        openfhe-src: ./3rd-party/openfhe_1-4-2/openfhe-development
       args:
         EYED_MODE: ${EYED_MODE:-prod}
     ports:
@@ -43,14 +41,20 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      nats:
+        condition: service_started
+      smpc-party-1:
+        condition: service_started
+      smpc-party-2:
+        condition: service_started
+      smpc-party-3:
+        condition: service_started
     secrets:
       - db_user
       - db_name_engine2
       - db_password
     volumes:
       - ./models:/src/models:ro
-      - fhe-config:/config
-      - he-keys-engine2:/keys
     environment:
       EYED_DB_USER_FILE: /run/secrets/db_user
       EYED_DB_NAME_FILE: /run/secrets/db_name_engine2
@@ -58,15 +62,66 @@ services:
       EYED_DB_URL: postgresql://__DB_USER__:__DB_PASSWORD__@postgres:5432/__DB_NAME__
       EYED_MODE: ${EYED_MODE:-prod}
       EYED_PIPELINE_CONFIG: /src/libiris/pipeline.yaml
-      EYED_FHE_ENABLED: "true"
-      EYED_HE_KEY_DIR: /keys
-      EYED_ALLOW_PLAINTEXT: "true"
+      EYED_SMPC_ENABLED: "true"
+      EYED_SMPC_MODE: ${EYED_SMPC_MODE:-distributed}
+      EYED_NATS_URL: nats://nats:4222
+      EYED_SMPC_NUM_PARTIES: "3"
+      EYED_SMPC_PIPELINE_DEPTH: ${EYED_SMPC_PIPELINE_DEPTH:-0}
+      EYED_SMPC_SHARDS_PER_PARTICIPANT: ${EYED_SMPC_SHARDS_PER_PARTICIPANT:-0}
+      EYED_TLS_CERT_DIR: ${EYED_TLS_CERT_DIR:-}
+      EYED_AUDIT_LOG_PATH: ${EYED_AUDIT_LOG_PATH:-}
+      EYED_SECURITY_MONITOR: ${EYED_SECURITY_MONITOR:-false}
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:7000/health/ready | grep -q ready"]
       interval: 5s
       timeout: 3s
       retries: 30
       start_period: 120s
+
+  smpc-party-1:
+    build:
+      context: ./iris-engine2
+      dockerfile: smpc-party/Dockerfile
+    depends_on:
+      - nats
+    environment:
+      PARTY_ID: "1"
+      NATS_URL: nats://nats:4222
+      NATS_SUBJECT_PREFIX: smpc
+      SHARD_ID: ${SMPC_SHARD_ID_1:-0}
+      TOTAL_SHARDS: ${SMPC_TOTAL_SHARDS:-0}
+      TLS_CERT_DIR: ${SMPC_TLS_CERT_DIR:-}
+    restart: unless-stopped
+
+  smpc-party-2:
+    build:
+      context: ./iris-engine2
+      dockerfile: smpc-party/Dockerfile
+    depends_on:
+      - nats
+    environment:
+      PARTY_ID: "2"
+      NATS_URL: nats://nats:4222
+      NATS_SUBJECT_PREFIX: smpc
+      SHARD_ID: ${SMPC_SHARD_ID_2:-0}
+      TOTAL_SHARDS: ${SMPC_TOTAL_SHARDS:-0}
+      TLS_CERT_DIR: ${SMPC_TLS_CERT_DIR:-}
+    restart: unless-stopped
+
+  smpc-party-3:
+    build:
+      context: ./iris-engine2
+      dockerfile: smpc-party/Dockerfile
+    depends_on:
+      - nats
+    environment:
+      PARTY_ID: "3"
+      NATS_URL: nats://nats:4222
+      NATS_SUBJECT_PREFIX: smpc
+      SHARD_ID: ${SMPC_SHARD_ID_3:-0}
+      TOTAL_SHARDS: ${SMPC_TOTAL_SHARDS:-0}
+      TLS_CERT_DIR: ${SMPC_TLS_CERT_DIR:-}
+    restart: unless-stopped
 
   key-service:
     build:
@@ -174,5 +229,3 @@ volumes:
   pgdata:
   archive-data:
   he-keys:
-  he-keys-engine2:
-  fhe-config:

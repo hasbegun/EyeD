@@ -86,20 +86,6 @@ void register_enroll_routes(httplib::Server& svr, ServerContext& ctx) {
 
         auto template_id = generate_uuid();
 
-        // Prepare encrypted blobs outside the DB lock (encryption is slow)
-        std::vector<uint8_t> iris_blob, mask_blob;
-        bool use_fhe = false;
-#ifdef IRIS_HAS_FHE
-        if (ctx.config.fhe_enabled && ctx.fhe.is_active() && !ctx.config.allow_plaintext) {
-            use_fhe = true;
-            std::tie(iris_blob, mask_blob) = ctx.fhe.encrypt_template(*result->iris_template);
-            if (iris_blob.empty() || mask_blob.empty()) {
-                res.set_content(make_error("FHE encryption failed"), "application/json");
-                return;
-            }
-        }
-#endif
-
         // Persist to DB (all DB calls under lock)
         bool db_persisted = false;
         {
@@ -123,16 +109,8 @@ void register_enroll_routes(httplib::Server& svr, ServerContext& ctx) {
                 return;
             }
 
-            if (use_fhe) {
-                db_persisted = ctx.db.persist_encrypted_template(
-                    template_id, identity_id, eye_side_str,
-                    iris_blob, mask_blob,
-                    static_cast<int>(result->iris_template->iris_codes.size()),
-                    device_id);
-            } else {
-                db_persisted = ctx.db.persist_template(template_id, identity_id, eye_side_str,
+            db_persisted = ctx.db.persist_template(template_id, identity_id, eye_side_str,
                                         *result->iris_template, device_id);
-            }
         }
 
         if (!db_persisted) {
@@ -159,7 +137,7 @@ void register_enroll_routes(httplib::Server& svr, ServerContext& ctx) {
             {"is_duplicate",           false},
             {"duplicate_identity_id",  nullptr},
             {"duplicate_identity_name",nullptr},
-            {"is_encrypted",           ctx.config.fhe_enabled && ctx.fhe.is_active()},
+            {"smpc_protected",         ctx.smpc.is_active()},
             {"error",                  nullptr}
         }).dump(), "application/json");
     });

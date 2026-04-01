@@ -1,28 +1,64 @@
 #include "gallery.h"
-#include "fhe.h"
 
 #include <algorithm>
 #include <iostream>
 #include <map>
 
-#ifdef IRIS_HAS_FHE
-#include <iris/crypto/encrypted_matcher.hpp>
-#include <iris/crypto/encrypted_template.hpp>
-#endif
+#include "smpc.h"
 
-Gallery::Gallery(double match_threshold, double dedup_threshold,
-                 FHEManager* fhe)
+Gallery::Gallery(double match_threshold, double dedup_threshold)
     : match_threshold_(match_threshold),
-      dedup_threshold_(dedup_threshold),
-      fhe_(fhe) {}
+      dedup_threshold_(dedup_threshold) {}
+
+void Gallery::enable_smpc(iris::SMPCGallery* smpc_gallery) {
+    std::lock_guard lock(mutex_);
+    smpc_gallery_ = smpc_gallery;
+}
+
+void Gallery::enable_smpc_distributed(SMPCManager* smpc_manager) {
+    std::lock_guard lock(mutex_);
+    smpc_manager_ = smpc_manager;
+}
+
+bool Gallery::smpc_active() const {
+    return smpc_gallery_ != nullptr || smpc_manager_ != nullptr;
+}
 
 void Gallery::add(GalleryEntry entry) {
+    std::lock_guard lock(mutex_);
+    if (smpc_manager_) {
+        // Distributed mode: enroll via coordinator (splits shares, distributes to participants)
+        auto r = smpc_manager_->enroll_distributed(entry.template_id, entry.tmpl);
+        if (!r.has_value()) {
+            std::cerr << "[gallery] Coordinator enroll failed: "
+                      << r.error().message << std::endl;
+        }
+    } else if (smpc_gallery_) {
+        // Simulated mode: add to in-process SMPC gallery
+        auto r = smpc_gallery_->add_template(entry.template_id, entry.tmpl);
+        if (!r.has_value()) {
+            std::cerr << "[gallery] SMPC add_template failed: "
+                      << r.error().message << std::endl;
+        }
+    }
+    entries_.push_back(std::move(entry));
+}
+
+void Gallery::add_metadata_only(GalleryEntry entry) {
     std::lock_guard lock(mutex_);
     entries_.push_back(std::move(entry));
 }
 
 int Gallery::remove(const std::string& identity_id) {
     std::lock_guard lock(mutex_);
+    // Remove from SMPC gallery first (before entries_ is modified)
+    if (smpc_gallery_) {
+        for (const auto& e : entries_) {
+            if (e.identity_id == identity_id) {
+                smpc_gallery_->remove_template(e.template_id);
+            }
+        }
+    }
     auto it = std::remove_if(entries_.begin(), entries_.end(),
                              [&](const GalleryEntry& e) {
                                  return e.identity_id == identity_id;
@@ -37,14 +73,13 @@ std::optional<GalleryMatch> Gallery::find_best_match(
     // Caller must hold mutex_
     if (entries_.empty()) return std::nullopt;
 
-#ifdef IRIS_HAS_FHE
-    // If any entry is encrypted, use encrypted matching path
-    bool has_encrypted = std::any_of(entries_.begin(), entries_.end(),
-                                      [](const GalleryEntry& e) { return e.is_encrypted; });
-    if (has_encrypted && fhe_ && fhe_->is_active()) {
-        return find_best_match_encrypted(probe, threshold);
+    if (smpc_manager_) {
+        return find_best_match_coordinator(probe, threshold);
     }
-#endif
+
+    if (smpc_gallery_) {
+        return find_best_match_smpc(probe, threshold);
+    }
 
     // Plaintext matching path
     std::vector<iris::IrisTemplate> gallery_templates;
@@ -78,74 +113,23 @@ std::optional<GalleryMatch> Gallery::find_best_match(
     };
 }
 
-#ifdef IRIS_HAS_FHE
-std::optional<GalleryMatch> Gallery::find_best_match_encrypted(
+std::optional<GalleryMatch> Gallery::find_best_match_smpc(
     const iris::IrisTemplate& probe, double threshold) const {
     // Caller must hold mutex_
-    if (entries_.empty() || !fhe_ || !fhe_->is_active()) return std::nullopt;
+    if (entries_.empty() || !smpc_gallery_) return std::nullopt;
 
-    const auto& ctx = fhe_->context();
+    auto results = smpc_gallery_->match_probe(probe);
+    if (!results || results->empty()) return std::nullopt;
 
-    double best_dist = 1.0;
+    // Results are in the same order as entries_ (kept in sync by add/remove)
     size_t best_idx = 0;
+    double best_dist = 1.0;
     int best_rot = 0;
-
-    for (size_t i = 0; i < entries_.size(); ++i) {
-        const auto& entry = entries_[i];
-        if (!entry.is_encrypted || entry.encrypted_iris.empty()) continue;
-
-        // For each scale, compute encrypted HD and take the minimum
-        double entry_best_dist = 1.0;
-        int entry_best_rot = 0;
-
-        for (size_t s = 0; s < entry.encrypted_iris.size(); ++s) {
-            const auto& gallery_enc = entry.encrypted_iris[s];
-            if (s >= probe.iris_codes.size()) break;
-
-            // Combine probe iris code bits with mask bits, matching
-            // the way encrypt_template() combines them for gallery.
-            iris::PackedIrisCode probe_combined;
-            probe_combined.code_bits = probe.iris_codes[s].code_bits;
-            if (s < probe.mask_codes.size()) {
-                probe_combined.mask_bits = probe.mask_codes[s].code_bits;
-            } else {
-                probe_combined.mask_bits = probe.iris_codes[s].mask_bits;
-            }
-
-            constexpr int kRotationShift = 15;
-
-            for (int abs_shift = 0; abs_shift <= kRotationShift; ++abs_shift) {
-                for (int sign : {1, -1}) {
-                    if (abs_shift == 0 && sign == -1) continue;
-                    const int shift = abs_shift * sign;
-
-                    auto rotated_probe = probe_combined.rotate(shift);
-
-                    // Encrypt rotated probe
-                    auto enc_probe = iris::EncryptedTemplate::encrypt(ctx, rotated_probe);
-                    if (!enc_probe) continue;
-
-                    // Encrypted match
-                    auto enc_result = iris::EncryptedMatcher::match_encrypted(
-                        ctx, *enc_probe, gallery_enc);
-                    if (!enc_result) continue;
-
-                    // Decrypt only the HD result (NOT the iris data)
-                    auto hd = iris::EncryptedMatcher::decrypt_result(ctx, *enc_result);
-                    if (!hd) continue;
-
-                    if (*hd < entry_best_dist) {
-                        entry_best_dist = *hd;
-                        entry_best_rot = shift;
-                    }
-                }
-            }
-        }
-
-        if (entry_best_dist < best_dist) {
-            best_dist = entry_best_dist;
+    for (size_t i = 0; i < results->size() && i < entries_.size(); ++i) {
+        if ((*results)[i].distance < best_dist) {
+            best_dist = (*results)[i].distance;
             best_idx = i;
-            best_rot = entry_best_rot;
+            best_rot = (*results)[i].best_rotation;
         }
     }
 
@@ -159,7 +143,6 @@ std::optional<GalleryMatch> Gallery::find_best_match_encrypted(
         .matched_template_id = entries_[best_idx].template_id,
     };
 }
-#endif
 
 std::optional<GalleryMatch> Gallery::match(
     const iris::IrisTemplate& probe) const {
@@ -184,6 +167,42 @@ DuplicateCheck Gallery::check_duplicate(
 size_t Gallery::size() const {
     std::lock_guard lock(mutex_);
     return entries_.size();
+}
+
+std::optional<GalleryMatch> Gallery::find_best_match_coordinator(
+    const iris::IrisTemplate& probe, double threshold) const {
+    // Caller must hold mutex_
+    if (entries_.empty() || !smpc_manager_) return std::nullopt;
+
+    auto results = smpc_manager_->verify_distributed(probe);
+    if (!results || results->empty()) return std::nullopt;
+
+    // Find the best (lowest distance) result
+    const CoordinatorVerifyResult* best_result = nullptr;
+    for (const auto& r : *results) {
+        if (!best_result || r.distance < best_result->distance) {
+            best_result = &r;
+        }
+    }
+    if (!best_result) return std::nullopt;
+
+    // Map subject_id back to our entries_ to get identity info
+    for (const auto& e : entries_) {
+        if (e.template_id == best_result->subject_id) {
+            bool is_match = best_result->distance < threshold;
+            return GalleryMatch{
+                .hamming_distance = best_result->distance,
+                .is_match = is_match,
+                .best_rotation = 0,
+                .matched_identity_id = e.identity_id,
+                .matched_identity_name = e.identity_name,
+                .matched_template_id = e.template_id,
+            };
+        }
+    }
+
+    // subject_id not found in local entries (shouldn't happen)
+    return std::nullopt;
 }
 
 std::vector<Gallery::IdentityInfo> Gallery::list() const {

@@ -215,6 +215,22 @@ services:
       - gateway
       - "50051"
 
+  vnv:
+    build:
+      context: ./scripts/vnv
+    profiles: [vnv]
+    depends_on:
+      iris-engine2:
+        condition: service_healthy
+    volumes:
+      - ./data:/data:ro
+      - ./reports:/reports
+    environment:
+      VNV_API_URL: http://iris-engine2:7000
+      VNV_DATASET: /data/Iris/CASIA-Iris-Thousand
+      VNV_OUTPUT: /reports/vnv/
+    entrypoint: ["python"]
+
 secrets:
   db_user:
     file: ./secrets/db_user.txt

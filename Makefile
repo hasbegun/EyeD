@@ -1,4 +1,4 @@
-.PHONY: up up-prod up-dev up-test up-d down build build-gateway build-capture build-client build-storage rebuild logs health ready test-integration status clean nuke ps gallery webcam webcam-macos webcam-relay build-tools dev-client2 dev-client2-macos build-client2-web build-client2-macos db-shell db-reset db-clean export-training download-models build-iris2 test-iris2 test-iris-engine2-container clean-iris2 verify-s1 verify-s2 verify-s3 verify-s6 verify-dev-config verify-prod-config verify-fhe-toggle verify-db-isolation verify-fhe-persist verify-all fetch-openfhe
+.PHONY: up up-prod up-dev up-test up-d down build build-gateway build-capture build-client build-storage rebuild logs health ready test-integration status clean nuke ps gallery webcam webcam-macos webcam-relay build-tools dev-client2 dev-client2-macos build-client2-web build-client2-macos db-shell db-reset db-clean export-training download-models build-iris2 test-iris2 test-iris-engine2-container clean-iris2 verify-s1 verify-s2 verify-s3 verify-s6 verify-dev-config verify-prod-config verify-fhe-toggle verify-db-isolation verify-fhe-persist verify-all fetch-openfhe build-vnv vnv-benchmark vnv-analyze vnv-report vnv vnv-clean db-reset-dev
 
 # --- Core ---
 
@@ -218,9 +218,13 @@ build-client2-macos: ## Build Flutter client2 for macOS
 db-shell:          ## Open psql shell in postgres container
 	docker compose exec postgres psql -U eyed -d eyed
 
-db-reset:          ## Drop and recreate database schema
+db-reset:          ## Drop and recreate database schema (prod: eyed)
 	docker compose exec postgres psql -U eyed -d eyed -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
 	docker compose exec postgres psql -U eyed -d eyed -f /docker-entrypoint-initdb.d/01-init.sql
+
+db-reset-dev:      ## Drop and recreate dev database schema (eyed_dev)
+	docker compose exec postgres psql -U eyed -d eyed_dev -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
+	docker compose exec postgres psql -U eyed -d eyed_dev -f /docker-entrypoint-initdb.d/01-init.sql
 
 db-clean:          ## Clean database for dev (warns before deleting)
 	@echo ""
@@ -302,6 +306,44 @@ health-engine2:    ## Health check iris-engine2
 
 gallery-engine2:   ## Show iris-engine2 gallery size
 	@curl -s http://localhost:9510/gallery/size | python3 -m json.tool
+
+# --- V&V Benchmark ---
+
+DEV_COMPOSE := EYED_MODE=dev docker compose -f docker-compose.yml -f docker-compose.dev.yml
+VNV_RUN := $(DEV_COMPOSE) --profile vnv run --rm vnv
+
+build-vnv:         ## Build V&V benchmark container
+	$(DEV_COMPOSE) --profile vnv build vnv
+
+vnv-benchmark:     ## Run V&V benchmark (enroll + genuine + impostor probes) in container
+	@echo "=== V&V Benchmark ==="
+	@echo "Ensure dev stack is running: make up-dev"
+	$(VNV_RUN) benchmark.py --no-progress
+
+vnv-analyze:       ## Analyze V&V results and generate plots
+	$(VNV_RUN) analyze.py --input /reports/vnv/latest
+
+vnv-report:        ## Generate self-contained HTML report
+	$(VNV_RUN) report.py --input /reports/vnv/latest
+
+vnv:               ## Run full V&V pipeline: db-reset → benchmark → analyze → report
+	@echo "================================================"
+	@echo " EyeD V&V Full Pipeline"
+	@echo " Dataset: CASIA-Iris-Thousand (1000 subjects)"
+	@echo " Enrolled: 000-799 (80%), Impostor: 800-999 (20%)"
+	@echo "================================================"
+	$(MAKE) db-reset-dev
+	@echo "Waiting for iris-engine2 to reload gallery..."
+	@sleep 5
+	$(MAKE) vnv-benchmark
+	$(MAKE) vnv-analyze
+	$(MAKE) vnv-report
+	@echo "================================================"
+	@echo " V&V Complete. Report: reports/vnv/latest/report.html"
+	@echo "================================================"
+
+vnv-clean:         ## Remove all V&V reports
+	rm -rf reports/vnv/
 
 # --- Cleanup ---
 

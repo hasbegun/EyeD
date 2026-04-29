@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EyeD — Privacy-Preserving Iris Recognition</title>
+    <meta name="description" content="EyeD is a production-grade, privacy-preserving iris recognition system built on modern C++ microservices with homomorphic encryption and secure multi-party computation.">
+    <style>
+        :root {
+            --bg: #0b0f1a;
+            --surface: #131825;
+            --surface-2: #1a2035;
+            --border: #232a3f;
+            --accent: #3b82f6;
+            --accent-glow: rgba(59, 130, 246, 0.15);
+            --accent-2: #22d3ee;
+            --text: #e2e8f0;
+            --text-dim: #94a3b8;
+            --text-bright: #f8fafc;
+            --green: #34d399;
+            --purple: #a78bfa;
+            --orange: #fb923c;
+        }
+
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.7;
+            overflow-x: hidden;
+        }
+
+        /* ---- Utilities ---- */
+        .container { max-width: 1120px; margin: 0 auto; padding: 0 24px; }
+        .text-accent { color: var(--accent); }
+        .text-green  { color: var(--green); }
+        .text-purple { color: var(--purple); }
+        .text-dim    { color: var(--text-dim); }
+
+        /* ---- Nav ---- */
+        nav {
+            position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+            background: rgba(11, 15, 26, 0.85);
+            backdrop-filter: blur(16px);
+            border-bottom: 1px solid var(--border);
+        }
+        nav .container {
+            display: flex; align-items: center; justify-content: space-between;
+            height: 64px;
+        }
+        nav .logo {
+            font-size: 1.25rem; font-weight: 700; letter-spacing: -0.02em;
+            color: var(--text-bright); text-decoration: none;
+        }
+        nav .logo span { color: var(--accent); }
+        nav ul { list-style: none; display: flex; gap: 32px; }
+        nav a { color: var(--text-dim); text-decoration: none; font-size: 0.9rem; transition: color 0.2s; }
+        nav a:hover { color: var(--text-bright); }
+
+        /* ---- Hero ---- */
+        .hero {
+            padding: 160px 0 100px;
+            text-align: center;
+            position: relative;
+        }
+        .hero::before {
+            content: '';
+            position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+            width: 800px; height: 800px;
+            background: radial-gradient(circle, var(--accent-glow) 0%, transparent 70%);
+            pointer-events: none;
+        }
+        .hero h1 {
+            font-size: clamp(2.5rem, 6vw, 4rem);
+            font-weight: 800; letter-spacing: -0.03em;
+            color: var(--text-bright);
+            line-height: 1.15;
+            margin-bottom: 24px;
+        }
+        .hero p {
+            font-size: 1.2rem; color: var(--text-dim);
+            max-width: 640px; margin: 0 auto 40px;
+        }
+        .badge-row {
+            display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;
+            margin-bottom: 48px;
+        }
+        .badge {
+            display: inline-flex; align-items: center; gap: 6px;
+            padding: 6px 14px; border-radius: 999px;
+            font-size: 0.8rem; font-weight: 600;
+            background: var(--surface-2); border: 1px solid var(--border);
+            color: var(--text-dim);
+        }
+        .badge .dot {
+            width: 8px; height: 8px; border-radius: 50%;
+        }
+        .dot-blue   { background: var(--accent); }
+        .dot-green  { background: var(--green); }
+        .dot-purple { background: var(--purple); }
+        .dot-orange { background: var(--orange); }
+
+        .hero-cta {
+            display: inline-flex; align-items: center; gap: 8px;
+            padding: 14px 28px; border-radius: 10px;
+            font-size: 1rem; font-weight: 600;
+            background: var(--accent); color: #fff;
+            text-decoration: none;
+            transition: transform 0.15s, box-shadow 0.15s;
+            box-shadow: 0 0 24px rgba(59,130,246,0.3);
+        }
+        .hero-cta:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 0 32px rgba(59,130,246,0.45);
+        }
+
+        /* ---- Sections ---- */
+        section { padding: 80px 0; }
+        section h2 {
+            font-size: 2rem; font-weight: 700; letter-spacing: -0.02em;
+            color: var(--text-bright);
+            margin-bottom: 16px;
+        }
+        section .subtitle {
+            color: var(--text-dim); font-size: 1.1rem;
+            max-width: 560px; margin-bottom: 48px;
+        }
+        .section-label {
+            font-size: 0.8rem; font-weight: 700; text-transform: uppercase;
+            letter-spacing: 0.1em; color: var(--accent);
+            margin-bottom: 12px;
+        }
+
+        /* ---- Grid Cards ---- */
+        .card-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 20px;
+        }
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 32px;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        .card:hover {
+            border-color: var(--accent);
+            box-shadow: 0 0 24px var(--accent-glow);
+        }
+        .card-icon {
+            width: 44px; height: 44px;
+            display: flex; align-items: center; justify-content: center;
+            border-radius: 10px;
+            font-size: 1.3rem;
+            margin-bottom: 16px;
+        }
+        .card-icon.blue   { background: rgba(59,130,246,0.12); }
+        .card-icon.green  { background: rgba(52,211,153,0.12); }
+        .card-icon.purple { background: rgba(167,139,250,0.12); }
+        .card-icon.orange { background: rgba(251,146,60,0.12); }
+        .card h3 {
+            font-size: 1.15rem; font-weight: 700;
+            color: var(--text-bright); margin-bottom: 8px;
+        }
+        .card p { color: var(--text-dim); font-size: 0.95rem; }
+
+        /* ---- Stats ---- */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+        }
+        .stat-card {
+            text-align: center;
+            padding: 32px 20px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+        }
+        .stat-card .number {
+            font-size: 2.5rem; font-weight: 800;
+            color: var(--text-bright);
+            line-height: 1.1;
+            letter-spacing: -0.03em;
+        }
+        .stat-card .label {
+            font-size: 0.85rem; color: var(--text-dim);
+            margin-top: 4px;
+        }
+
+        /* ---- Comparison Table ---- */
+        .comparison-table {
+            width: 100%; border-collapse: collapse;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            overflow: hidden;
+            font-size: 0.92rem;
+        }
+        .comparison-table th, .comparison-table td {
+            padding: 14px 20px;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+        .comparison-table th {
+            background: var(--surface-2);
+            color: var(--text-bright);
+            font-weight: 700;
+            font-size: 0.82rem;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+        }
+        .comparison-table td { color: var(--text-dim); }
+        .comparison-table tr:last-child td { border-bottom: none; }
+        .comparison-table .winner { color: var(--green); font-weight: 600; }
+
+        /* ---- Tech Stack ---- */
+        .tech-pills {
+            display: flex; flex-wrap: wrap; gap: 10px;
+            margin-top: 24px;
+        }
+        .pill {
+            padding: 8px 16px; border-radius: 8px;
+            font-size: 0.85rem; font-weight: 600;
+            background: var(--surface-2); border: 1px solid var(--border);
+            color: var(--text-dim);
+        }
+
+        /* ---- Deploy ---- */
+        .deploy-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 16px;
+        }
+        .deploy-card {
+            padding: 24px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+        }
+        .deploy-card h4 {
+            font-size: 1rem; font-weight: 700;
+            color: var(--text-bright); margin-bottom: 6px;
+        }
+        .deploy-card p {
+            font-size: 0.85rem; color: var(--text-dim);
+        }
+
+        /* ---- Footer ---- */
+        footer {
+            padding: 40px 0;
+            border-top: 1px solid var(--border);
+            text-align: center;
+            color: var(--text-dim); font-size: 0.85rem;
+        }
+
+        /* ---- Responsive ---- */
+        @media (max-width: 768px) {
+            nav ul { display: none; }
+            .card-grid { grid-template-columns: 1fr; }
+            .stats-grid { grid-template-columns: repeat(2, 1fr); }
+            .arch-diagram { font-size: 0.7rem; padding: 20px; }
+        }
+
+        /* ---- Scroll Animation ---- */
+        .fade-in {
+            opacity: 0; transform: translateY(24px);
+            transition: opacity 0.6s ease, transform 0.6s ease;
+        }
+        .fade-in.visible {
+            opacity: 1; transform: translateY(0);
+        }
+    </style>
+</head>
+<body>
+
+<!-- Nav -->
+<nav>
+    <div class="container">
+        <a href="#" class="logo"><span>Eye</span>D</a>
+        <ul>
+            <li><a href="#features">Features</a></li>
+            <li><a href="#accuracy">Accuracy</a></li>
+            <li><a href="#security">Security</a></li>
+            <li><a href="#deploy">Deploy</a></li>
+        </ul>
+    </div>
+</nav>
+
+<!-- Hero -->
+<section class="hero">
+    <div class="container">
+        <div class="badge-row">
+            <span class="badge"><span class="dot dot-blue"></span> C++23</span>
+            <span class="badge"><span class="dot dot-green"></span> Open-IRIS</span>
+            <span class="badge"><span class="dot dot-purple"></span> SMPC + FHE</span>
+            <span class="badge"><span class="dot dot-orange"></span> Containerized</span>
+        </div>
+        <h1>Privacy-Preserving<br>Iris Recognition</h1>
+        <p>Real-time biometric authentication with cryptographic privacy guarantees. Your iris data is <strong>never</strong> exposed in plaintext.</p>
+        <a href="https://github.com/hasbegun/EyeD" class="hero-cta">
+            View on GitHub &rarr;
+        </a>
+    </div>
+</section>
+
+<!-- Key Stats -->
+<section>
+    <div class="container fade-in">
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="number text-accent">&lt;88ms</div>
+                <div class="label">End-to-end latency</div>
+            </div>
+            <div class="stat-card">
+                <div class="number text-green">0.12%</div>
+                <div class="label">FNMR @ FMR=0.001</div>
+            </div>
+            <div class="stat-card">
+                <div class="number text-purple">3-Party</div>
+                <div class="label">SMPC matching</div>
+            </div>
+            <div class="stat-card">
+                <div class="number text-accent">100%</div>
+                <div class="label">C++ microservices</div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Features -->
+<section id="features">
+    <div class="container fade-in">
+        <div class="section-label">Core Capabilities</div>
+        <h2>What EyeD Does</h2>
+        <p class="subtitle">A complete iris recognition pipeline from capture to match, built for production deployments where privacy is non-negotiable.</p>
+
+        <div class="card-grid">
+            <div class="card">
+                <div class="card-icon blue">&#128065;</div>
+                <h3>Real-Time Iris Analysis</h3>
+                <p>Captures eye images via edge devices, applies quality gating, and runs the full segmentation-normalization-encoding-matching pipeline in under 88ms.</p>
+            </div>
+            <div class="card">
+                <div class="card-icon green">&#128274;</div>
+                <h3>Encrypted Matching</h3>
+                <p>Iris templates are encrypted using Fully Homomorphic Encryption (OpenFHE). Matching is performed on ciphertext &mdash; the server never sees your biometric data.</p>
+            </div>
+            <div class="card">
+                <div class="card-icon purple">&#128279;</div>
+                <h3>Secure Multi-Party Computation</h3>
+                <p>3-party replicated secret sharing splits templates across independent parties. No single party can reconstruct the original iris code.</p>
+            </div>
+            <div class="card">
+                <div class="card-icon orange">&#128230;</div>
+                <h3>Containerized Microservices</h3>
+                <p>Six independent Docker services scale from a single Jetson Nano to a multi-GPU Kubernetes cluster. Deploy on-prem, in the cloud, or hybrid.</p>
+            </div>
+            <div class="card">
+                <div class="card-icon blue">&#127760;</div>
+                <h3>Edge-to-Cloud Architecture</h3>
+                <p>Headless Raspberry Pi capture devices stream quality-gated frames to compute servers via gRPC. WebRTC provides live video monitoring in the browser.</p>
+            </div>
+            <div class="card">
+                <div class="card-icon green">&#128202;</div>
+                <h3>Live Dashboard</h3>
+                <p>Flutter-based web UI shows real-time match results, enrollment management, gallery visualization, and device monitoring via WebSocket.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Accuracy -->
+<section id="accuracy">
+    <div class="container fade-in">
+        <div class="section-label">Algorithm Performance</div>
+        <h2>150x More Accurate Than Legacy</h2>
+        <p class="subtitle">EyeD uses Open-IRIS (Worldcoin, MIT) with DNN segmentation, replacing the legacy Masek pipeline entirely.</p>
+
+        <table class="comparison-table">
+            <thead>
+                <tr>
+                    <th>Aspect</th>
+                    <th>Legacy (Masek)</th>
+                    <th>EyeD (Open-IRIS)</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Segmentation</td>
+                    <td>Hough circles (IoU ~35%)</td>
+                    <td class="winner">MobileNetV2 + UNet++ (IoU 94.3%)</td>
+                </tr>
+                <tr>
+                    <td>Encoding</td>
+                    <td>1D Log-Gabor, ~2K bits</td>
+                    <td class="winner">2D Gabor, multi-scale, >10K bits</td>
+                </tr>
+                <tr>
+                    <td>Matching</td>
+                    <td>Hamming distance (no mask)</td>
+                    <td class="winner">Masked fractional Hamming</td>
+                </tr>
+                <tr>
+                    <td>FNMR @ FMR=0.001</td>
+                    <td>~17-27%</td>
+                    <td class="winner">0.12% (150x better)</td>
+                </tr>
+                <tr>
+                    <td>Eyelid Detection</td>
+                    <td>1-2 minutes (curve fitting)</td>
+                    <td class="winner">Included in DNN (0ms extra)</td>
+                </tr>
+                <tr>
+                    <td>Full Pipeline</td>
+                    <td>~2+ minutes</td>
+                    <td class="winner">~43ms (GPU) / ~130ms (CPU)</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<!-- Security -->
+<section id="security">
+    <div class="container fade-in">
+        <div class="section-label">Privacy by Design</div>
+        <h2>Cryptographic Security</h2>
+        <p class="subtitle">Biometric data is the most sensitive data you have. EyeD treats it accordingly.</p>
+
+        <div class="card-grid">
+            <div class="card">
+                <h3 class="text-purple">Fully Homomorphic Encryption</h3>
+                <p>Iris templates are encrypted with OpenFHE (BFV/BGV schemes) before storage. Template matching runs entirely on ciphertext. The compute server never sees plaintext biometric data.</p>
+            </div>
+            <div class="card">
+                <h3 class="text-green">3-Party SMPC</h3>
+                <p>Templates are split into secret shares distributed across three independent parties via replicated secret sharing. Reconstruction requires collusion of all three parties, which is architecturally prevented.</p>
+            </div>
+            <div class="card">
+                <h3 class="text-accent">Secure Memory</h3>
+                <p>Cryptographic keys use <code>mlock</code>-protected memory buffers that are zeroed on deallocation. No key material is ever written to swap or paged to disk.</p>
+            </div>
+            <div class="card">
+                <h3 class="text-orange">Operational Modes</h3>
+                <p>Three modes &mdash; <strong>prod</strong> (FHE locked ON, minimal API surface), <strong>dev</strong> (toggleable, full debug), and <strong>test</strong> (isolated DB). Prod is the safe default when no config is present.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Tech Stack -->
+<section>
+    <div class="container fade-in">
+        <div class="section-label">Built With</div>
+        <h2>Technology Stack</h2>
+
+        <div class="tech-pills">
+            <span class="pill">C++23</span>
+            <span class="pill">CMake + Ninja</span>
+            <span class="pill">gRPC + Protobuf</span>
+            <span class="pill">NATS 2.10</span>
+            <span class="pill">OpenFHE 1.4.2</span>
+            <span class="pill">ONNX Runtime</span>
+            <span class="pill">PostgreSQL 16</span>
+            <span class="pill">Docker Compose</span>
+            <span class="pill">Boost.Beast</span>
+            <span class="pill">Flutter (Web UI)</span>
+            <span class="pill">Open-IRIS (Worldcoin)</span>
+            <span class="pill">WebRTC</span>
+            <span class="pill">CUDA / CoreML</span>
+            <span class="pill">AVX2 / NEON SIMD</span>
+        </div>
+    </div>
+</section>
+
+<!-- Deployment -->
+<section id="deploy">
+    <div class="container fade-in">
+        <div class="section-label">Flexible Deployment</div>
+        <h2>Runs Anywhere</h2>
+        <p class="subtitle">From a single Jetson Nano to a multi-GPU Kubernetes cluster.</p>
+
+        <div class="deploy-grid">
+            <div class="deploy-card">
+                <h4>On-Prem (Jetson)</h4>
+                <p>All 6 containers on one Jetson Xavier. Lowest latency, zero internet dependency. Air-gapped deployments supported.</p>
+            </div>
+            <div class="deploy-card">
+                <h4>Hybrid Edge + Cloud</h4>
+                <p>Gateway + iris-engine in the cloud (AWS g4dn, GCP T4). Template DB stays on-prem for data sovereignty.</p>
+            </div>
+            <div class="deploy-card">
+                <h4>Full Cloud</h4>
+                <p>All containers on Kubernetes. RPi capture devices connect over VPN. Auto-scale iris-engine replicas with load.</p>
+            </div>
+            <div class="deploy-card">
+                <h4>Development</h4>
+                <p>Single <code>docker compose up</code> on Mac (Apple Silicon) or Linux. CPU-only mode, ~130ms inference. Fully functional.</p>
+            </div>
+        </div>
+
+        <div style="margin-top: 32px; padding: 24px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px;">
+            <h4 style="color: var(--text-bright); margin-bottom: 8px;">Quick Start</h4>
+            <pre style="color: var(--accent-2); font-family: 'SF Mono', monospace; font-size: 0.9rem; overflow-x: auto;"><code>git clone https://github.com/hasbegun/EyeD.git
+cd EyeD
+make up-dev          # Start all services (dev mode)
+# Open http://localhost:9505 for the dashboard</code></pre>
+        </div>
+    </div>
+</section>
+
+<!-- Footer -->
+<footer>
+    <div class="container">
+        <p style="margin-bottom: 8px;"><strong style="color: var(--text-bright);">EyeD</strong> &mdash; Privacy-Preserving Iris Recognition</p>
+        <p>&copy; 2026 EyeD Project. Built with modern C++ and cryptographic conviction.</p>
+    </div>
+</footer>
+
+<script>
+    // Scroll-triggered fade-in
+    const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                entry.target.classList.add('visible');
+            }
+        });
+    }, { threshold: 0.1 });
+
+    document.querySelectorAll('.fade-in').forEach(el => observer.observe(el));
+</script>
+</body>
+</html>

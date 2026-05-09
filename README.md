@@ -78,48 +78,79 @@ Templates are persisted in PostgreSQL for durability. On startup, existing templ
 
 ## Architecture
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│              Client (Flutter)  :9505 web / macOS native         │
-└────────────────────────┬────────────────────────────────────────┘
-                         │ HTTP / gRPC
-┌────────────────────────▼────────────────────────────────────────┐
-│              Gateway (C++)  gRPC :9503  |  HTTP :9504           │
-└──────────┬──────────────────────────────────────┬───────────────┘
-           │ NATS                                  │ NATS
-┌──────────▼───────────────┐         ┌─────────────▼──────────────┐
-│   iris-engine2 (C++)     │         │      Storage (Go)  :9507   │
-│   HTTP API  :9510        │         └────────────────────────────┘
-│                          │
-│  ┌────────────────────┐  │
-│  │  SMPCManager       │  │    ┌───────────────────────────────┐
-│  │  Coordinator       ├──┼────►   NATS  :9502  |  mon: :9501  │
-│  │  (plain/pipe/shard)│  │    └──────┬─────────┬────────┬─────┘
-│  └────────────────────┘  │           │         │        │
-│                          │    ┌──────▼──┐ ┌────▼───┐ ┌─▼──────┐
-│  Gallery (in-memory)     │    │ Party 1 │ │Party 2 │ │Party 3 │
-│  + PostgreSQL persist    │    │ share   │ │ share  │ │ share  │
-└──────────────────────────┘    └─────────┘ └────────┘ └────────┘
+```mermaid
+flowchart TB
+    Client["Client (Flutter)\n:9505 web / macOS native"]
 
-┌───────────────────────────┐    ┌────────────────────────────────┐
-│  key-service (C++)  NATS  │    │  PostgreSQL 16  :9506          │
-│  HE key management        │    │  templates, identities, logs   │
-└───────────────────────────┘    └────────────────────────────────┘
+    subgraph gateway_layer["Gateway Layer"]
+        Gateway["Gateway (C++)\ngRPC :9503 · HTTP :9504"]
+    end
+
+    subgraph engine_core["iris-engine2 (C++) :9510"]
+        Coordinator["SMPCManager · Coordinator\nplain · pipelined · sharded"]
+        Gallery["Gallery (in-memory)\n+ PostgreSQL persist"]
+    end
+
+    subgraph smpc_cluster["SMPC Cluster"]
+        NATS["NATS :9502 · mon :9501"]
+        P1["Party 1 · share"]
+        P2["Party 2 · share"]
+        P3["Party 3 · share"]
+    end
+
+    Storage["Storage (Go) :9507"]
+    DB["PostgreSQL 16 :9506\ntemplates · identities · logs"]
+    KeySvc["key-service (C++)\nHE key management · NATS"]
+
+    Client -->|"HTTP / gRPC"| Gateway
+    Gateway -->|"NATS"| Coordinator
+    Gateway -->|"NATS"| Storage
+    Coordinator -->|"NATS"| NATS
+    NATS --> P1
+    NATS --> P2
+    NATS --> P3
+    Gallery -.->|"persist"| DB
+    KeySvc -.->|"NATS"| NATS
 ```
 
 **Enrollment flow:**
-1. Client sends `POST /enroll` with `identity_id` + base64 JPEG to iris-engine2
-2. Pipeline runs: segmentation (ONNX) → normalization → Gabor encoding → IrisCode
-3. Duplicate check against gallery (HD < 0.32 threshold)
-4. Template persisted to PostgreSQL
-5. `Gallery::add()` enrolls the template into SMPC: coordinator splits into 3 shares and distributes to participants over NATS
-6. Response includes `smpc_protected: true` when SMPC is active
+
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant E as iris-engine2
+    participant DB as PostgreSQL
+    participant N as NATS
+    participant P as SMPC Participants
+
+    C->>E: POST /enroll (identity_id + JPEG)
+    E->>E: Pipeline: segmentation → Gabor → IrisCode
+    E->>E: Duplicate check (HD < 0.32)
+    E->>DB: persist_template()
+    E->>N: Coordinator splits template into 3 shares
+    N->>P: share_sync (one share per party)
+    E-->>C: { smpc_protected: true, template_id }
+```
 
 **Verification flow:**
-1. Client sends `POST /analyze/json` with base64 JPEG
-2. Pipeline produces a probe IrisCode
-3. `Gallery::match()` → coordinator sends probe shares to each participant; each computes partial Hamming Distance; coordinator reconstructs best match
-4. Response includes `hamming_distance`, `is_match`, matched identity, and `latency_ms`
+
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant E as iris-engine2
+    participant DB as PostgreSQL
+    participant N as NATS
+    participant P as SMPC Participants
+
+    C->>E: POST /analyze/json (JPEG)
+    E->>E: Pipeline → probe IrisCode
+    E->>N: Coordinator sends probe shares
+    N->>P: match job (partial Hamming Distance)
+    P-->>N: partial HD response
+    N-->>E: reconstructed best match (HD, subject_id)
+    E->>DB: log_match()
+    E-->>C: { hamming_distance, is_match, latency_ms }
+```
 
 ---
 

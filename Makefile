@@ -1,4 +1,4 @@
-.PHONY: up up-prod up-dev up-test up-d down build build-gateway build-capture build-client build-storage rebuild logs health ready test-integration status clean nuke ps gallery webcam webcam-macos webcam-relay build-tools dev-client2 dev-client2-macos build-client2-web build-client2-macos db-shell db-reset db-clean export-training download-models build-iris2 test-iris2 test-iris-engine2-container clean-iris2 verify-s1 verify-s2 verify-s3 verify-s6 verify-dev-config verify-prod-config verify-fhe-toggle verify-db-isolation verify-fhe-persist verify-all fetch-openfhe build-vnv vnv-benchmark vnv-analyze vnv-report vnv vnv-clean db-reset-dev
+.PHONY: up up-prod up-dev up-test up-d down build build-gateway build-capture build-client build-storage rebuild logs health ready test-integration status clean nuke ps gallery webcam webcam-macos webcam-relay build-tools dev-client2 dev-client2-macos build-client2-web build-client2-macos db-shell db-reset db-clean export-training download-models build-iris2 test-iris2 test-iris-engine2-container clean-iris2 verify-s1 verify-s2 verify-s3 verify-s6 verify-dev-config verify-prod-config verify-fhe-toggle verify-db-isolation verify-fhe-persist verify-all fetch-openfhe build-vnv vnv-benchmark vnv-analyze vnv-report vnv vnv-clean db-reset-dev smpc-gen-certs smpc-unit-test smpc-integration up-tls smpc-vnv-all regression-tests
 
 # --- Core ---
 
@@ -84,6 +84,68 @@ logs-capture:      ## Follow capture-device logs
 
 logs-storage:      ## Follow storage service logs
 	docker compose logs -f storage
+
+# --- Regression Test Suite ---
+# Phases: (1) unit tests — no cluster needed
+#         (2) functional health checks — requires live cluster (make up)
+#         (3) E2E integration tests   — requires live cluster
+#         (4) security gate checks    — requires live cluster
+
+regression-tests:  ## Full regression suite: unit → functional → E2E integration → security gates
+	@echo "================================================================"
+	@echo " Regression Test Suite"
+	@echo "================================================================"
+	@echo ""
+	@echo "--- Phase 1: Unit Tests (simulated mode, no cluster needed) ---"
+	$(MAKE) smpc-unit-test
+	@echo ""
+	@echo "--- Phase 2: Functional Health Checks ---"
+	@curl -sf $(ENGINE)/health/alive > /dev/null || \
+		(echo "  FAIL: cluster not responding — run: make up" && exit 1)
+	@echo "  /health/alive → OK"
+	@echo "  /health/ready:"
+	@curl -sf $(ENGINE)/health/ready | python3 -m json.tool
+	@echo "  /config:"
+	@curl -sf $(ENGINE)/config | python3 -m json.tool
+	@echo ""
+	@echo "--- Phase 3: End-to-End Integration Tests ---"
+	$(MAKE) test-integration
+	$(MAKE) smpc-integration
+	@echo ""
+	@echo "--- Phase 4: Security Gate Verification ---"
+	$(MAKE) verify-all
+	@echo ""
+	@echo "================================================================"
+	@echo " Regression complete: all phases passed."
+	@echo "================================================================"
+
+# --- SMPC VV Procedures ---
+
+smpc-gen-certs:    ## Generate mTLS certs for SMPC cluster (output: iris-engine2/certs/)
+	pushd iris-engine2 && ./scripts/gen-certs.sh ./certs && popd
+
+smpc-unit-test:    ## Build and run all SMPC unit/integration/migration/security tests via CTest
+	docker build --target test -t iris-engine2-test ./iris-engine2
+	docker run --rm iris-engine2-test ctest --test-dir /src/build --output-on-failure
+
+smpc-integration:  ## Run distributed SMPC integration tests (requires running cluster: make up)
+	./iris-engine2/scripts/run-integration-tests.sh
+
+up-tls:            ## Start cluster with mTLS enabled (requires: make smpc-gen-certs first)
+	docker compose -f docker-compose.yml -f docker-compose.tls.yml up -d
+
+smpc-vnv-all:      ## Full SMPC VV run: unit tests + E2E integration tests
+	@echo "================================================"
+	@echo " SMPC VV: Unit + Integration Tests"
+	@echo "================================================"
+	@$(MAKE) smpc-unit-test
+	@echo ""
+	@echo "--- E2E: checking cluster health ---"
+	@curl -sf http://localhost:9510/health/ready | python3 -m json.tool
+	@$(MAKE) smpc-integration
+	@echo "================================================"
+	@echo " SMPC VV complete."
+	@echo "================================================"
 
 # --- Testing ---
 

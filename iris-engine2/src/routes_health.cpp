@@ -20,7 +20,7 @@ void register_health_routes(httplib::Server& svr, ServerContext& ctx) {
             {"alive",                 true},
             {"ready",                 true},
             {"pipeline_loaded",       true},
-            {"nats_connected",        false},
+            {"nats_connected",        ctx.smpc.is_nats_connected()},
             {"gallery_size",          static_cast<int>(ctx.gallery.size())},
             {"db_connected",          db_ok},
             {"redis_connected",       false},

@@ -71,6 +71,7 @@ services:
       EYED_TLS_CERT_DIR: ${EYED_TLS_CERT_DIR:-}
       EYED_AUDIT_LOG_PATH: ${EYED_AUDIT_LOG_PATH:-}
       EYED_SECURITY_MONITOR: ${EYED_SECURITY_MONITOR:-false}
+      EYED_SMPC_FALLBACK_PLAINTEXT: ${EYED_SMPC_FALLBACK_PLAINTEXT:-false}
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:7000/health/ready | grep -q ready"]
       interval: 5s

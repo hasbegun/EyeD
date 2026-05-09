@@ -94,6 +94,9 @@ class SMPCManager {
     /// Number of enrolled templates in the coordinator.
     size_t coordinator_size() const;
 
+    /// Whether the NATS client is currently connected (distributed mode only).
+    [[nodiscard]] bool is_nats_connected() const noexcept;
+
     /// Whether mTLS is enabled.
     [[nodiscard]] bool tls_enabled() const noexcept;
 

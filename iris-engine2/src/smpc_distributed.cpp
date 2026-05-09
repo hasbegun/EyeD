@@ -55,6 +55,10 @@ bool SMPCManager::init_security(const SecurityConfig& security) {
     return true;
 }
 
+bool SMPCManager::is_nats_connected() const noexcept {
+    return nats_client_ && nats_client_->is_connected();
+}
+
 std::string SMPCManager::security_status() const {
     if (!security_monitor_) return "";
     return security_monitor_->get_status_report();

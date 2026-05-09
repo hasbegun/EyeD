@@ -98,7 +98,7 @@ flowchart TB
         P3["Party 3 · share"]
     end
 
-    Storage["Storage (Go) :9507"]
+    Storage["Storage (C++) :9507"]
     DB["PostgreSQL 16 :9506\ntemplates · identities · logs"]
     KeySvc["key-service (C++)\nHE key management · NATS"]
 

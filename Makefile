@@ -1,4 +1,4 @@
-.PHONY: up up-prod up-dev up-test up-d down build build-gateway build-capture build-client build-storage rebuild logs health ready test-integration status clean nuke ps gallery webcam webcam-macos webcam-relay build-tools dev-client2 dev-client2-macos build-client2-web build-client2-macos db-shell db-reset db-clean export-training download-models build-iris2 test-iris2 test-iris-engine2-container clean-iris2 verify-s1 verify-s2 verify-s3 verify-s6 verify-dev-config verify-prod-config verify-fhe-toggle verify-db-isolation verify-fhe-persist verify-all fetch-openfhe build-vnv vnv-benchmark vnv-analyze vnv-report vnv vnv-clean db-reset-dev smpc-gen-certs smpc-unit-test smpc-integration up-tls smpc-vnv-all regression-tests smpc2-gen-certs smpc2-unit-test smpc2-integration up-smpc2 up-smpc2-d down-smpc2 smpc2-vnv-all
+.PHONY: up up-prod up-dev up-test up-d down build build-gateway build-capture build-client build-storage rebuild logs health ready test-integration status clean nuke ps gallery webcam webcam-macos webcam-relay build-tools dev-client2 dev-client2-macos build-client2-web build-client2-macos db-shell db-reset db-clean export-training download-models build-iris2 test-iris2 test-iris-engine2-container clean-iris2 verify-s1 verify-s2 verify-s3 verify-s6 verify-dev-config verify-prod-config verify-fhe-toggle verify-db-isolation verify-fhe-persist verify-all fetch-openfhe build-vnv vnv-benchmark vnv-analyze vnv-report vnv vnv-smoke vnv-clean db-reset-dev smpc-gen-certs smpc-unit-test smpc-integration up-tls smpc-vnv-all regression-tests smpc2-gen-certs smpc2-unit-test smpc2-integration up-smpc2 up-smpc2-d down-smpc2 smpc2-vnv-all
 
 # --- Core ---
 
@@ -446,6 +446,18 @@ vnv:               ## Run full V&V pipeline: db-reset → benchmark → analyze 
 	$(MAKE) vnv-report
 	@echo "================================================"
 	@echo " V&V Complete. Report: reports/vnv/latest/report.html"
+	@echo "================================================"
+
+vnv-smoke:         ## Quick smoke test: 5 enrolled + 5 impostor subjects
+	@echo "================================================"
+	@echo " EyeD V&V Smoke Test (5 enrolled + 5 impostor)"
+	@echo "================================================"
+	$(MAKE) db-reset-dev
+	@echo "Waiting for iris-engine2 to reload gallery..."
+	@sleep 5
+	$(VNV_RUN) benchmark.py --no-progress --enroll-count 5 --impostor-count 5
+	@echo "================================================"
+	@echo " Smoke test complete."
 	@echo "================================================"
 
 vnv-clean:         ## Remove all V&V reports

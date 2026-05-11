@@ -22,6 +22,7 @@ import os
 import subprocess
 import sys
 import time
+import uuid
 from datetime import datetime
 from pathlib import Path
 
@@ -32,9 +33,19 @@ from tqdm import tqdm
 # Constants
 # ---------------------------------------------------------------------------
 
-ENROLL_SUBJECTS = range(0, 800)      # 000–799 enrolled (80%)
-IMPOSTOR_SUBJECTS = range(800, 1000) # 800–999 never enrolled (20%)
+# Defaults — overridden by --enroll-count / --impostor-count CLI args
+DEFAULT_ENROLL_COUNT = 800       # subjects 000–799
+DEFAULT_IMPOSTOR_COUNT = 200     # subjects 800–999
+IMPOSTOR_START = 800             # impostor subjects always start at 800
 EYE_SIDES = {"L": "left", "R": "right"}
+
+# Fixed namespace for deterministic UUID generation from subject number
+_VNV_UUID_NS = uuid.UUID("a1b2c3d4-e5f6-7890-abcd-ef1234567890")
+
+
+def subject_uuid(subject_idx: int) -> str:
+    """Deterministic UUID from subject index. Same index always gives same UUID."""
+    return str(uuid.uuid5(_VNV_UUID_NS, f"subject-{subject_idx:03d}"))
 
 
 # ---------------------------------------------------------------------------
@@ -93,12 +104,12 @@ def get_gallery_size(api_url: str) -> int:
 # ---------------------------------------------------------------------------
 
 def run_enrollment(dataset: Path, api_url: str, writer: csv.DictWriter,
-                   progress: bool = True) -> dict:
+                   enroll_range: range, progress: bool = True) -> dict:
     """
-    Enroll first image per eye for subjects 000–799.
+    Enroll first image per eye for the given subject range.
     Returns summary stats dict.
     """
-    subjects = [subject_dir_name(i) for i in ENROLL_SUBJECTS]
+    subjects = [subject_dir_name(i) for i in enroll_range]
     total = 0
     success = 0
     duplicate = 0
@@ -123,10 +134,11 @@ def run_enrollment(dataset: Path, api_url: str, writer: csv.DictWriter,
         t0 = time.monotonic()
         try:
             jpeg_b64 = load_jpeg_b64(img_path)
+            identity_uuid = subject_uuid(int(subj))
             resp = requests.post(
                 f"{api_url}/enroll",
                 json={
-                    "identity_id": subj,
+                    "identity_id": identity_uuid,
                     "identity_name": subj,
                     "eye_side": eye_side,
                     "jpeg_b64": jpeg_b64,
@@ -193,12 +205,12 @@ def run_enrollment(dataset: Path, api_url: str, writer: csv.DictWriter,
 # ---------------------------------------------------------------------------
 
 def run_genuine_verification(dataset: Path, api_url: str, writer: csv.DictWriter,
-                             progress: bool = True) -> dict:
+                             enroll_range: range, progress: bool = True) -> dict:
     """
-    Send remaining images from enrolled subjects (000–799) as genuine probes.
+    Send remaining images from enrolled subjects as genuine probes.
     The system should match them to their own identity.
     """
-    subjects = [subject_dir_name(i) for i in ENROLL_SUBJECTS]
+    subjects = [subject_dir_name(i) for i in enroll_range]
     total = 0
     correct = 0
     false_negative = 0
@@ -269,10 +281,11 @@ def run_genuine_verification(dataset: Path, api_url: str, writer: csv.DictWriter
                 hd = match.get("hamming_distance", "")
                 rotation = match.get("best_rotation", "")
 
-            if is_match and matched_id == subj:
+            expected_uuid = subject_uuid(int(subj))
+            if is_match and matched_id == expected_uuid:
                 correct += 1
                 is_correct = True
-            elif is_match and matched_id != subj:
+            elif is_match and matched_id != expected_uuid:
                 wrong_identity += 1
                 is_correct = False
             else:
@@ -330,13 +343,13 @@ def run_genuine_verification(dataset: Path, api_url: str, writer: csv.DictWriter
 # ---------------------------------------------------------------------------
 
 def run_impostor_verification(dataset: Path, api_url: str, writer: csv.DictWriter,
-                              progress: bool = True) -> dict:
+                              impostor_range: range, progress: bool = True) -> dict:
     """
-    Send ALL images from unenrolled subjects (800–999) as impostor probes.
+    Send ALL images from unenrolled subjects as impostor probes.
     The system must return is_match=false for every single one.
     Any match is a true false positive.
     """
-    subjects = [subject_dir_name(i) for i in IMPOSTOR_SUBJECTS]
+    subjects = [subject_dir_name(i) for i in impostor_range]
     total = 0
     true_reject = 0
     false_positive = 0
@@ -474,6 +487,12 @@ def main():
                         help="Output directory root")
     parser.add_argument("--no-progress", action="store_true",
                         help="Disable progress bars")
+    parser.add_argument("--enroll-count", type=int,
+                        default=int(os.environ.get("VNV_ENROLL_COUNT", str(DEFAULT_ENROLL_COUNT))),
+                        help="Number of subjects to enroll (from 000 up)")
+    parser.add_argument("--impostor-count", type=int,
+                        default=int(os.environ.get("VNV_IMPOSTOR_COUNT", str(DEFAULT_IMPOSTOR_COUNT))),
+                        help="Number of impostor subjects (from 800 up)")
     args = parser.parse_args()
 
     dataset = Path(args.dataset)
@@ -483,6 +502,9 @@ def main():
 
     api_url = args.api.rstrip("/")
     show_progress = not args.no_progress
+
+    enroll_range = range(0, args.enroll_count)
+    impostor_range = range(IMPOSTOR_START, IMPOSTOR_START + args.impostor_count)
 
     # ── Check API readiness ──────────────────────────────────────────────
     print(f"Checking API at {api_url} ...")
@@ -518,8 +540,8 @@ def main():
         "gallery_size_before": gallery_before,
         "smpc_active": health.get("smpc_active", False),
         "api_version": health.get("version", "unknown"),
-        "enrolled_subjects": "000-799",
-        "impostor_subjects": "800-999",
+        "enrolled_subjects": f"000-{args.enroll_count - 1:03d}",
+        "impostor_subjects": f"{IMPOSTOR_START:03d}-{IMPOSTOR_START + args.impostor_count - 1:03d}",
         "python_version": sys.version,
     }
     with open(run_dir / "metadata.json", "w") as f:
@@ -527,7 +549,7 @@ def main():
 
     # ── Phase 1: Enrollment ──────────────────────────────────────────────
     print("\n" + "=" * 60)
-    print("PHASE 1: ENROLLMENT (subjects 000–799, first image per eye)")
+    print(f"PHASE 1: ENROLLMENT (subjects 000–{args.enroll_count - 1:03d}, first image per eye)")
     print("=" * 60)
 
     enrollment_fields = [
@@ -539,7 +561,7 @@ def main():
     enrollment_writer.writeheader()
 
     t_enroll_start = time.monotonic()
-    enroll_stats = run_enrollment(dataset, api_url, enrollment_writer, show_progress)
+    enroll_stats = run_enrollment(dataset, api_url, enrollment_writer, enroll_range, show_progress)
     t_enroll_end = time.monotonic()
     enrollment_file.close()
 
@@ -572,7 +594,7 @@ def main():
     genuine_writer.writeheader()
 
     t_genuine_start = time.monotonic()
-    genuine_stats = run_genuine_verification(dataset, api_url, genuine_writer, show_progress)
+    genuine_stats = run_genuine_verification(dataset, api_url, genuine_writer, enroll_range, show_progress)
     t_genuine_end = time.monotonic()
     genuine_file.close()
 
@@ -588,7 +610,7 @@ def main():
 
     # ── Phase 3: Impostor Verification ───────────────────────────────────
     print("\n" + "=" * 60)
-    print("PHASE 3: IMPOSTOR VERIFICATION (all images from unenrolled subjects 800–999)")
+    print(f"PHASE 3: IMPOSTOR VERIFICATION (all images from unenrolled subjects {IMPOSTOR_START:03d}–{IMPOSTOR_START + args.impostor_count - 1:03d})")
     print("=" * 60)
 
     impostor_file = open(run_dir / "impostor.csv", "w", newline="")
@@ -596,7 +618,7 @@ def main():
     impostor_writer.writeheader()
 
     t_impostor_start = time.monotonic()
-    impostor_stats = run_impostor_verification(dataset, api_url, impostor_writer, show_progress)
+    impostor_stats = run_impostor_verification(dataset, api_url, impostor_writer, impostor_range, show_progress)
     t_impostor_end = time.monotonic()
     impostor_file.close()
 

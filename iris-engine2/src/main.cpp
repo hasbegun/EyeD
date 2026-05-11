@@ -2,6 +2,7 @@
 #include "db.h"
 #include "gallery.h"
 #include "smpc.h"
+#include "smpc2_manager.h"
 #include "server_context.h"
 #include "routes_health.h"
 #include "routes_analyze.h"
@@ -69,6 +70,24 @@ int main() {
         std::cout << "[iris-engine2] SMPC disabled by configuration" << std::endl;
     }
 
+    // --- Initialize SMPC2 ---
+    SMPC2Manager smpc2;
+    if (config.smpc2_enabled) {
+        std::cout << "[iris-engine2] SMPC2 enabled (mode=" << config.smpc2_mode
+                  << ", parties=" << config.smpc2_parties << "), initializing..." << std::endl;
+        if (!smpc2.init(config.smpc2_mode, config.nats_url,
+                        config.smpc2_parties, config.tls_cert_dir)) {
+            if (config.smpc_fallback_plaintext) {
+                std::cerr << "[iris-engine2] WARNING: SMPC2 init failed, falling back" << std::endl;
+            } else {
+                std::cerr << "[iris-engine2] FATAL: SMPC2 initialization failed" << std::endl;
+                return 1;
+            }
+        }
+    } else {
+        std::cout << "[iris-engine2] SMPC2 disabled (set EYED_SMPC2_ENABLED=true to enable)" << std::endl;
+    }
+
     // --- Connect to database ---
     Database db;
     if (!config.db_url.empty()) {
@@ -124,7 +143,7 @@ int main() {
     }
 
     // --- Register routes ---
-    eyed::ServerContext ctx{config, pipeline, pipeline_mutex, smpc, db, gallery, {}};
+    eyed::ServerContext ctx{config, pipeline, pipeline_mutex, smpc, smpc2, db, gallery, {}};
     httplib::Server svr;
 
     eyed::register_health_routes (svr, ctx);

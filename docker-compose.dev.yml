@@ -14,6 +14,7 @@ services:
     environment:
       EYED_MODE: dev
       EYED_ALLOW_PLAINTEXT: "true"
+      EYED_SMPC2_MODE: "simulated"
 
   client2:
     build:

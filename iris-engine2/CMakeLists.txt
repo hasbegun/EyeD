@@ -47,6 +47,9 @@ add_executable(iris-engine2
     src/db.cpp
     src/smpc.cpp
     src/smpc_distributed.cpp
+    src/smpc2_manager.cpp
+    src/smpc2_nats_codec.cpp
+    src/nats_smpc2_bus.cpp
     src/nats_client.cpp
     src/gallery.cpp
     src/routes_health.cpp
@@ -70,11 +73,24 @@ target_link_libraries(iris-engine2 PRIVATE
 # Relax -Werror inherited from libiris for service code
 target_compile_options(iris-engine2 PRIVATE -Wno-error)
 
-# --- SMPC Participant binary ---
+# --- SMPC1 Participant binary ---
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/smpc-party")
     add_executable(smpc-party smpc-party/main.cpp)
     target_link_libraries(smpc-party PRIVATE iris nats_static)
     target_compile_options(smpc-party PRIVATE -Wno-error)
+endif()
+
+# --- SMPC2 Participant binary ---
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/smpc2-party")
+    add_executable(smpc2-party
+        smpc2-party/main.cpp
+        src/smpc2_nats_codec.cpp
+    )
+    target_include_directories(smpc2-party PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+    )
+    target_link_libraries(smpc2-party PRIVATE iris nats_static)
+    target_compile_options(smpc2-party PRIVATE -Wno-error)
 endif()
 
 # --- Tests (only when tests/ directory is present) ---

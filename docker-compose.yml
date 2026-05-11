@@ -49,6 +49,16 @@ services:
         condition: service_started
       smpc-party-3:
         condition: service_started
+      smpc2-party-1:
+        condition: service_started
+      smpc2-party-2:
+        condition: service_started
+      smpc2-party-3:
+        condition: service_started
+      smpc2-party-4:
+        condition: service_started
+      smpc2-party-5:
+        condition: service_started
     secrets:
       - db_user
       - db_name_engine2
@@ -66,6 +76,9 @@ services:
       EYED_SMPC_MODE: ${EYED_SMPC_MODE:-distributed}
       EYED_NATS_URL: nats://nats:4222
       EYED_SMPC_NUM_PARTIES: "3"
+      EYED_SMPC2_ENABLED: "true"
+      EYED_SMPC2_MODE: ${EYED_SMPC2_MODE:-distributed}
+      SMPC_PARTIES: ${SMPC_PARTIES:-5}
       EYED_SMPC_PIPELINE_DEPTH: ${EYED_SMPC_PIPELINE_DEPTH:-0}
       EYED_SMPC_SHARDS_PER_PARTICIPANT: ${EYED_SMPC_SHARDS_PER_PARTICIPANT:-0}
       EYED_TLS_CERT_DIR: ${EYED_TLS_CERT_DIR:-}
@@ -121,6 +134,76 @@ services:
       NATS_SUBJECT_PREFIX: smpc
       SHARD_ID: ${SMPC_SHARD_ID_3:-0}
       TOTAL_SHARDS: ${SMPC_TOTAL_SHARDS:-0}
+      TLS_CERT_DIR: ${SMPC_TLS_CERT_DIR:-}
+    restart: unless-stopped
+
+  smpc2-party-1:
+    build:
+      context: ./iris-engine2
+      target: smpc2-party
+    depends_on:
+      - nats
+    environment:
+      PARTY_ID: "1"
+      NATS_URL: nats://nats:4222
+      NATS_SUBJECT_PREFIX: smpc2
+      SMPC_PARTIES: ${SMPC_PARTIES:-5}
+      TLS_CERT_DIR: ${SMPC_TLS_CERT_DIR:-}
+    restart: unless-stopped
+
+  smpc2-party-2:
+    build:
+      context: ./iris-engine2
+      target: smpc2-party
+    depends_on:
+      - nats
+    environment:
+      PARTY_ID: "2"
+      NATS_URL: nats://nats:4222
+      NATS_SUBJECT_PREFIX: smpc2
+      SMPC_PARTIES: ${SMPC_PARTIES:-5}
+      TLS_CERT_DIR: ${SMPC_TLS_CERT_DIR:-}
+    restart: unless-stopped
+
+  smpc2-party-3:
+    build:
+      context: ./iris-engine2
+      target: smpc2-party
+    depends_on:
+      - nats
+    environment:
+      PARTY_ID: "3"
+      NATS_URL: nats://nats:4222
+      NATS_SUBJECT_PREFIX: smpc2
+      SMPC_PARTIES: ${SMPC_PARTIES:-5}
+      TLS_CERT_DIR: ${SMPC_TLS_CERT_DIR:-}
+    restart: unless-stopped
+
+  smpc2-party-4:
+    build:
+      context: ./iris-engine2
+      target: smpc2-party
+    depends_on:
+      - nats
+    environment:
+      PARTY_ID: "4"
+      NATS_URL: nats://nats:4222
+      NATS_SUBJECT_PREFIX: smpc2
+      SMPC_PARTIES: ${SMPC_PARTIES:-5}
+      TLS_CERT_DIR: ${SMPC_TLS_CERT_DIR:-}
+    restart: unless-stopped
+
+  smpc2-party-5:
+    build:
+      context: ./iris-engine2
+      target: smpc2-party
+    depends_on:
+      - nats
+    environment:
+      PARTY_ID: "5"
+      NATS_URL: nats://nats:4222
+      NATS_SUBJECT_PREFIX: smpc2
+      SMPC_PARTIES: ${SMPC_PARTIES:-5}
       TLS_CERT_DIR: ${SMPC_TLS_CERT_DIR:-}
     restart: unless-stopped
 

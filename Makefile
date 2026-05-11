@@ -1,4 +1,4 @@
-.PHONY: up up-prod up-dev up-test up-d down build build-gateway build-capture build-client build-storage rebuild logs health ready test-integration status clean nuke ps gallery webcam webcam-macos webcam-relay build-tools dev-client2 dev-client2-macos build-client2-web build-client2-macos db-shell db-reset db-clean export-training download-models build-iris2 test-iris2 test-iris-engine2-container clean-iris2 verify-s1 verify-s2 verify-s3 verify-s6 verify-dev-config verify-prod-config verify-fhe-toggle verify-db-isolation verify-fhe-persist verify-all fetch-openfhe build-vnv vnv-benchmark vnv-analyze vnv-report vnv vnv-clean db-reset-dev smpc-gen-certs smpc-unit-test smpc-integration up-tls smpc-vnv-all regression-tests
+.PHONY: up up-prod up-dev up-test up-d down build build-gateway build-capture build-client build-storage rebuild logs health ready test-integration status clean nuke ps gallery webcam webcam-macos webcam-relay build-tools dev-client2 dev-client2-macos build-client2-web build-client2-macos db-shell db-reset db-clean export-training download-models build-iris2 test-iris2 test-iris-engine2-container clean-iris2 verify-s1 verify-s2 verify-s3 verify-s6 verify-dev-config verify-prod-config verify-fhe-toggle verify-db-isolation verify-fhe-persist verify-all fetch-openfhe build-vnv vnv-benchmark vnv-analyze vnv-report vnv vnv-clean db-reset-dev smpc-gen-certs smpc-unit-test smpc-integration up-tls smpc-vnv-all regression-tests smpc2-gen-certs smpc2-unit-test smpc2-integration up-smpc2 up-smpc2-d down-smpc2 smpc2-vnv-all
 
 # --- Core ---
 
@@ -98,6 +98,7 @@ regression-tests:  ## Full regression suite: unit → functional → E2E integra
 	@echo ""
 	@echo "--- Phase 1: Unit Tests (simulated mode, no cluster needed) ---"
 	$(MAKE) smpc-unit-test
+	$(MAKE) smpc2-unit-test
 	@echo ""
 	@echo "--- Phase 2: Functional Health Checks ---"
 	@curl -sf $(ENGINE)/health/alive > /dev/null || \
@@ -108,11 +109,14 @@ regression-tests:  ## Full regression suite: unit → functional → E2E integra
 	@echo "  /config:"
 	@curl -sf $(ENGINE)/config | python3 -m json.tool
 	@echo ""
-	@echo "--- Phase 3: End-to-End Integration Tests ---"
+	@echo "--- Phase 3: End-to-End Integration Tests (SMPC1) ---"
 	$(MAKE) test-integration
 	$(MAKE) smpc-integration
 	@echo ""
-	@echo "--- Phase 4: Security Gate Verification ---"
+	@echo "--- Phase 4: End-to-End Integration Tests (SMPC2) ---"
+	$(MAKE) smpc2-integration
+	@echo ""
+	@echo "--- Phase 5: Security Gate Verification ---"
 	$(MAKE) verify-all
 	@echo ""
 	@echo "================================================================"
@@ -145,6 +149,46 @@ smpc-vnv-all:      ## Full SMPC VV run: unit tests + E2E integration tests
 	@$(MAKE) smpc-integration
 	@echo "================================================"
 	@echo " SMPC VV complete."
+	@echo "================================================"
+
+# --- SMPC2 VV Procedures (Shamir (k,n) with random placement) ---
+
+SMPC2_COMPOSE := docker compose -f docker-compose.yml -f docker-compose.smpc2.yml
+
+smpc2-gen-certs:   ## Generate mTLS certs for SMPC2 cluster (n parties via SMPC_PARTIES)
+	SMPC_PARTIES=$${SMPC_PARTIES:-5} bash iris-engine2/scripts/gen-certs.sh iris-engine2/certs smpc2-party
+
+smpc2-unit-test:   ## Run SMPC2 unit tests in container (no cluster needed)
+	$(SMPC2_COMPOSE) --profile test run --rm --build smpc2-unit-test
+
+smpc2-integration: ## Run SMPC2 distributed integration tests in container (requires: make up-smpc2)
+	$(SMPC2_COMPOSE) --profile test run --rm --build smpc2-integration-test
+
+up-smpc2:          ## Start cluster with SMPC2 enabled (n=SMPC_PARTIES, default 5)
+	SMPC_PARTIES=$${SMPC_PARTIES:-5} $(SMPC2_COMPOSE) up --build
+
+up-smpc2-d:        ## Start cluster with SMPC2 detached
+	SMPC_PARTIES=$${SMPC_PARTIES:-5} $(SMPC2_COMPOSE) up --build -d
+
+down-smpc2:        ## Stop SMPC2 cluster
+	$(SMPC2_COMPOSE) down
+
+smpc2-vnv-all:     ## Full SMPC2 VV: unit tests (container) → start cluster → integration tests (container)
+	@echo "================================================"
+	@echo " SMPC2 VV: Unit + Integration Tests"
+	@echo "================================================"
+	@$(MAKE) smpc2-unit-test
+	@echo ""
+	@echo "--- Starting SMPC2 cluster ---"
+	@SMPC_PARTIES=$${SMPC_PARTIES:-5} $(SMPC2_COMPOSE) up --build -d
+	@echo "--- Waiting for iris-engine2 healthy ---"
+	@$(SMPC2_COMPOSE) exec iris-engine2 curl -sf --retry 30 --retry-delay 5 \
+	    --retry-all-errors http://localhost:7000/health/ready > /dev/null
+	@$(MAKE) smpc2-integration
+	@echo "--- Stopping SMPC2 cluster ---"
+	@$(SMPC2_COMPOSE) down
+	@echo "================================================"
+	@echo " SMPC2 VV complete."
 	@echo "================================================"
 
 # --- Testing ---
@@ -332,13 +376,13 @@ download-models:   ## Download ONNX segmentation model from HuggingFace
 
 # --- iris-engine2 (C++ libiris) ---
 
-IRIS2_SRC := iris-engine2/.libiris/iris
+IRIS2_SRC := iris-engine2/.libiris
 IRIS2_BUILD := iris-engine2/build
+BIOLIB := BiometricLib/iris
 
 stage-iris2:
-	mkdir -p $(IRIS2_SRC)
-	cp -r ../BiometricLib/iris/* $(IRIS2_SRC)/
-# 	ln -s ../../BiometricLib/iris $(IRIS2_SRC)
+	mkdir -p $(IRIS2_SRC)/iris
+	rsync -a --delete $(PWD)/../$(BIOLIB)/ $(IRIS2_SRC)/iris/
 
 build-iris2:       ## Build iris-engine2 C++ library (in container)
 	docker compose -f $(IRIS2_SRC)/docker-compose.yml build test

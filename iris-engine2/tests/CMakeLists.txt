@@ -78,6 +78,17 @@ add_executable(test_migration
 target_link_libraries(test_migration PRIVATE doctest_with_main iris nats)
 target_include_directories(test_migration PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../src)
 
+# Test SMPC2 manager + codec (Shamir (k,n) with random placement)
+add_executable(test_smpc2_manager
+    test_smpc2_manager.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/smpc2_manager.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/smpc2_nats_codec.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/nats_smpc2_bus.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/nats_client.cpp
+)
+target_link_libraries(test_smpc2_manager PRIVATE doctest_with_main iris nats_static)
+target_include_directories(test_smpc2_manager PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../src)
+
 # --- Register tests with CTest ---
 add_test(NAME test_config COMMAND test_config)
 add_test(NAME test_db COMMAND test_db)
@@ -89,4 +100,5 @@ add_test(NAME test_smpc_security COMMAND test_smpc_security)
 add_test(NAME test_smpc_integration COMMAND test_smpc_integration)
 add_test(NAME test_migration COMMAND test_migration)
 add_test(NAME bench_smpc COMMAND bench_smpc)
+add_test(NAME test_smpc2_manager COMMAND test_smpc2_manager)
 

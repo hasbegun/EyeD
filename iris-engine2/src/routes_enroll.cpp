@@ -120,6 +120,18 @@ void register_enroll_routes(httplib::Server& svr, ServerContext& ctx) {
             return;
         }
 
+        // SMPC2 enrollment (Shamir shares, if active) — before gallery add
+        // to avoid partial state if share distribution fails.
+        bool smpc2_ok = true;
+        if (ctx.smpc2.is_active()) {
+            auto smpc2_r = ctx.smpc2.enroll(template_id, *result->iris_template);
+            if (!smpc2_r.has_value()) {
+                std::cerr << "[enroll] SMPC2 enroll failed for " << template_id
+                          << ": " << smpc2_r.error().message << std::endl;
+                smpc2_ok = false;
+            }
+        }
+
         // Add to in-memory gallery
         {
             GalleryEntry entry;
@@ -138,6 +150,7 @@ void register_enroll_routes(httplib::Server& svr, ServerContext& ctx) {
             {"duplicate_identity_id",  nullptr},
             {"duplicate_identity_name",nullptr},
             {"smpc_protected",         ctx.smpc.is_active()},
+            {"smpc2_protected",        ctx.smpc2.is_active() && smpc2_ok},
             {"error",                  nullptr}
         }).dump(), "application/json");
     });

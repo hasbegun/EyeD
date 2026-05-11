@@ -1,0 +1,23 @@
+# =============================================================================
+# SMPC2 Integration Test Runner
+# Lightweight container with curl + python3 for API testing.
+# Runs inside Docker network — uses service DNS names, not localhost.
+# =============================================================================
+FROM ubuntu:24.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV TZ=UTC
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    python3 \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY scripts/run-smpc2-integration-tests.sh /tests/run.sh
+RUN chmod +x /tests/run.sh
+
+# Internal Docker DNS: iris-engine2:7000, nats:8222
+ENV ENGINE=http://iris-engine2:7000
+ENV NATS_MON=http://nats:8222
+
+ENTRYPOINT ["/tests/run.sh"]

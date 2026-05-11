@@ -100,11 +100,30 @@ void register_analyze_routes(httplib::Server& svr, ServerContext& ctx) {
             }
         }
 
+        // SMPC2 secure match (when active, runs in parallel with plaintext path)
+        json smpc2_match_json = nullptr;
+        if (ctx.smpc2.is_active()) {
+            auto smpc2_r = ctx.smpc2.verify(*result->iris_template);
+            if (smpc2_r.has_value() && !smpc2_r->empty()) {
+                const auto& best = smpc2_r->front();
+                smpc2_match_json = {
+                    {"hamming_distance",  best.distance},
+                    {"is_match",          best.is_match},
+                    {"matched_template_id",
+                     best.is_match ? json(best.subject_id) : json(nullptr)},
+                };
+            } else if (!smpc2_r.has_value()) {
+                std::cerr << "[analyze] SMPC2 verify error: "
+                          << smpc2_r.error().message << std::endl;
+            }
+        }
+
         res.set_content(json({
             {"frame_id",          frame_id},
             {"device_id",         device_id},
             {"segmentation",      nullptr},
             {"match",             match_json},
+            {"smpc2_match",       smpc2_match_json},
             {"iris_template_b64", nullptr},
             {"latency_ms",        latency},
             {"error",             nullptr},

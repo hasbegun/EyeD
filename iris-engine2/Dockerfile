@@ -63,6 +63,7 @@ COPY .libiris/iris/ libiris/
 COPY CMakeLists.txt .
 COPY src/ src/
 COPY smpc-party/ smpc-party/
+COPY smpc2-party/ smpc2-party/
 
 # Mode-based build flags:
 #   dev  → Release (fast iteration)
@@ -112,6 +113,33 @@ EXPOSE 7000
 CMD ["iris-engine2"]
 
 # =============================================================================
+# Stage 3b: smpc2-party — SMPC2 participant microservice (Shamir (k,n))
+# =============================================================================
+FROM ubuntu:24.04 AS smpc2-party
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV TZ=UTC
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libopencv-dev \
+    libssl3t64 \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=build /opt/onnxruntime/lib/libonnxruntime.so* /usr/lib/
+COPY --from=build /src/build/smpc2-party /usr/local/bin/smpc2-party
+
+RUN ldconfig && \
+    useradd -r -s /usr/sbin/nologin iris
+
+USER iris
+
+ENV PARTY_ID=1
+ENV NATS_URL=nats://nats:4222
+ENV NATS_SUBJECT_PREFIX=smpc2
+
+ENTRYPOINT ["smpc2-party"]
+
+# =============================================================================
 # Stage 4: test — build and run unit tests
 # =============================================================================
 FROM base-deps AS test
@@ -125,6 +153,7 @@ COPY .libiris/iris/ libiris/
 COPY CMakeLists.txt .
 COPY src/ src/
 COPY smpc-party/ smpc-party/
+COPY smpc2-party/ smpc2-party/
 COPY tests/ tests/
 
 # Configure with tests enabled (SMPC enabled via CMakeLists.txt)

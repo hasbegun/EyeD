@@ -24,14 +24,18 @@ void register_config_routes(httplib::Server& svr, ServerContext& ctx) {
         } else {
             // dev / test: full visibility
             res.set_content(json({
-                {"mode",            ctx.config.mode},
-                {"smpc_enabled",    ctx.config.smpc_enabled},
-                {"smpc_active",     ctx.smpc.is_active()},
-                {"smpc_mode",       ctx.smpc.mode()},
-                {"gallery_size",    static_cast<int>(ctx.gallery.size())},
-                {"db_connected",    db_ok},
-                {"db_name",         ctx.config.db_name},
-                {"version",         "0.1.0"},
+                {"mode",              ctx.config.mode},
+                {"smpc_enabled",      ctx.config.smpc_enabled},
+                {"smpc_active",       ctx.smpc.is_active()},
+                {"smpc_mode",         ctx.smpc.mode()},
+                {"smpc2_enabled",     ctx.config.smpc2_enabled},
+                {"smpc2_active",      ctx.smpc2.is_active()},
+                {"smpc2_parties",     static_cast<int>(ctx.smpc2.total_parties())},
+                {"smpc2_threshold",   static_cast<int>(ctx.smpc2.threshold())},
+                {"gallery_size",      static_cast<int>(ctx.gallery.size())},
+                {"db_connected",      db_ok},
+                {"db_name",           ctx.config.db_name},
+                {"version",           "0.1.0"},
             }).dump(), "application/json");
         }
     });

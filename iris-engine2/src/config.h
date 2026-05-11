@@ -25,6 +25,11 @@ struct Config {
     bool security_monitor_enabled = false;         // Enable SecurityMonitor anomaly detection
     bool smpc_fallback_plaintext = false;             // Fall back to plaintext matching if SMPC init fails
 
+    // SMPC2 — Shamir (k,n) with random placement
+    bool smpc2_enabled = true;                         // Enable SMPC2 protocol (Shamir)
+    std::string smpc2_mode = "distributed";            // "simulated" or "distributed"
+    int  smpc2_parties = 5;                            // n parties (3–15); k=ceil(n/2) derived
+
     static Config from_env() {
         Config c;
 
@@ -32,7 +37,8 @@ struct Config {
         if (auto* v = std::getenv("EYED_MODE")) c.mode = v;
 
         // 2. Apply mode-based defaults before explicit env overrides
-        if (c.mode == "dev") c.smpc_mode = "simulated";
+        if (c.mode == "dev") c.smpc_mode  = "simulated";
+        if (c.mode == "dev") c.smpc2_mode = "simulated";
 
         // 3. Explicit env vars override mode defaults
         if (auto* v = std::getenv("EYED_PORT")) c.port = std::atoi(v);
@@ -59,6 +65,12 @@ struct Config {
             std::string val(v);
             c.smpc_fallback_plaintext = (val == "true" || val == "1" || val == "yes");
         }
+        if (auto* v = std::getenv("EYED_SMPC2_ENABLED")) {
+            std::string val(v);
+            c.smpc2_enabled = (val == "true" || val == "1" || val == "yes");
+        }
+        if (auto* v = std::getenv("EYED_SMPC2_MODE")) c.smpc2_mode = v;
+        if (auto* v = std::getenv("SMPC_PARTIES")) c.smpc2_parties = std::atoi(v);
 
         // 4. Resolve secrets and build db_url
         c.db_name = read_secret("EYED_DB_NAME_FILE");

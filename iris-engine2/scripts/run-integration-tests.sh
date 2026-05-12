@@ -21,9 +21,9 @@ SKIP=0
 
 # --- Helpers ---
 
-log_pass() { echo "  ✅ PASS: $1"; ((PASS++)); }
-log_fail() { echo "  ❌ FAIL: $1"; ((FAIL++)); }
-log_skip() { echo "  ⏭️  SKIP: $1"; ((SKIP++)); }
+log_pass() { echo "  ✅ PASS: $1"; ((PASS++)) || true; }
+log_fail() { echo "  ❌ FAIL: $1"; ((FAIL++)) || true; }
+log_skip() { echo "  ⏭️  SKIP: $1"; ((SKIP++)) || true; }
 
 wait_for_health() {
     local url="$1"
@@ -106,6 +106,8 @@ test_i6() {
 
 test_i7() {
     echo ""
+    # Brief stabilization after kill/restart cycle before hammering concurrency
+    sleep 3
     echo "=== I7: 50 concurrent requests → all succeed ==="
 
     local tmpdir

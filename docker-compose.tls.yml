@@ -1,0 +1,73 @@
+# docker-compose.tls.yml — mTLS overlay for SMPC cluster
+#
+# Apply on top of docker-compose.yml to enable mTLS for NATS and all SMPC services.
+#
+# Prerequisites:
+#   1. Generate certs:  pushd iris-engine2 && ./scripts/gen-certs.sh ./certs && popd
+#   2. Start cluster:   docker compose -f docker-compose.yml -f docker-compose.tls.yml up -d
+#
+# What this overlay changes:
+#   - nats: switches to nats-server-tls.conf (requires client certs) and mounts certs
+#   - iris-engine2: sets EYED_TLS_CERT_DIR=/certs and mounts certs
+#   - smpc-party-1/2/3: sets TLS_CERT_DIR=/certs and mounts certs
+
+services:
+  nats:
+    command: --config /etc/nats/nats-server-tls.conf
+    volumes:
+      - ./config/nats-server-tls.conf:/etc/nats/nats-server-tls.conf:ro
+      - ./iris-engine2/certs:/certs:ro
+
+  iris-engine2:
+    environment:
+      EYED_TLS_CERT_DIR: /certs
+    volumes:
+      - ./iris-engine2/certs:/certs:ro
+
+  smpc-party-1:
+    environment:
+      TLS_CERT_DIR: /certs
+    volumes:
+      - ./iris-engine2/certs:/certs:ro
+
+  smpc-party-2:
+    environment:
+      TLS_CERT_DIR: /certs
+    volumes:
+      - ./iris-engine2/certs:/certs:ro
+
+  smpc-party-3:
+    environment:
+      TLS_CERT_DIR: /certs
+    volumes:
+      - ./iris-engine2/certs:/certs:ro
+
+  smpc2-party-1:
+    environment:
+      TLS_CERT_DIR: /certs
+    volumes:
+      - ./iris-engine2/certs:/certs:ro
+
+  smpc2-party-2:
+    environment:
+      TLS_CERT_DIR: /certs
+    volumes:
+      - ./iris-engine2/certs:/certs:ro
+
+  smpc2-party-3:
+    environment:
+      TLS_CERT_DIR: /certs
+    volumes:
+      - ./iris-engine2/certs:/certs:ro
+
+  smpc2-party-4:
+    environment:
+      TLS_CERT_DIR: /certs
+    volumes:
+      - ./iris-engine2/certs:/certs:ro
+
+  smpc2-party-5:
+    environment:
+      TLS_CERT_DIR: /certs
+    volumes:
+      - ./iris-engine2/certs:/certs:ro

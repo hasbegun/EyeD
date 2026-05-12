@@ -1,0 +1,95 @@
+# =============================================================================
+# SMPC2 overlay — adds n smpc2-party containers and enables SMPC2 in iris-engine2.
+#
+# All services run in containers. No host builds or host-level test execution.
+#
+# Usage:
+#   make up-smpc2                 # start full cluster
+#   make smpc2-unit-test          # run unit tests in container
+#   make smpc2-integration        # run integration tests in container
+#   make smpc2-vnv-all            # unit → cluster → integration → teardown
+#
+# Override: SMPC_PARTIES=7 make up-smpc2  (range 3–15, default 5)
+# Only 5 party containers defined. For n>5, add more following the pattern.
+# =============================================================================
+
+x-smpc2-party: &smpc2-party
+  build:
+    context: ./iris-engine2
+    target: smpc2-party
+  depends_on:
+    - nats
+  restart: unless-stopped
+  environment: &smpc2-party-env
+    NATS_URL: "nats://nats:4222"
+    NATS_SUBJECT_PREFIX: "smpc2"
+    SMPC_PARTIES: "${SMPC_PARTIES:-5}"
+
+services:
+
+  # --- Coordinator (iris-engine2) overlay ---
+  iris-engine2:
+    environment:
+      EYED_SMPC2_ENABLED: "true"
+      EYED_SMPC2_MODE: "distributed"
+      EYED_NATS_URL: "nats://nats:4222"
+      SMPC_PARTIES: "${SMPC_PARTIES:-5}"
+    depends_on:
+      - smpc2-party-1
+      - smpc2-party-2
+      - smpc2-party-3
+      - smpc2-party-4
+      - smpc2-party-5
+
+  # --- Participant microservices (Shamir share storage + local XOR) ---
+  smpc2-party-1:
+    <<: *smpc2-party
+    environment:
+      <<: *smpc2-party-env
+      PARTY_ID: "1"
+
+  smpc2-party-2:
+    <<: *smpc2-party
+    environment:
+      <<: *smpc2-party-env
+      PARTY_ID: "2"
+
+  smpc2-party-3:
+    <<: *smpc2-party
+    environment:
+      <<: *smpc2-party-env
+      PARTY_ID: "3"
+
+  smpc2-party-4:
+    <<: *smpc2-party
+    environment:
+      <<: *smpc2-party-env
+      PARTY_ID: "4"
+
+  smpc2-party-5:
+    <<: *smpc2-party
+    environment:
+      <<: *smpc2-party-env
+      PARTY_ID: "5"
+
+  # --- Containerized test runners (activated with --profile test) ---
+
+  smpc2-unit-test:
+    build:
+      context: ./iris-engine2
+      target: test
+    profiles: [test]
+    entrypoint: ["ctest", "--test-dir", "/src/build", "--output-on-failure",
+                 "-R", "(ShamirSharing|PlacementMap|SMPC2|smpc2)"]
+
+  smpc2-integration-test:
+    build:
+      context: ./iris-engine2
+      dockerfile: smpc2-party/Dockerfile.test
+    profiles: [test]
+    depends_on:
+      iris-engine2:
+        condition: service_healthy
+    environment:
+      ENGINE: "http://iris-engine2:7000"
+      NATS_MON: "http://nats:8222"

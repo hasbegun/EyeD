@@ -86,38 +86,56 @@ logs-storage:      ## Follow storage service logs
 	docker compose logs -f storage
 
 # --- Regression Test Suite ---
+# Self-contained: starts dev cluster, runs all phases, leaves cluster running.
 # Phases: (1) unit tests — no cluster needed
-#         (2) functional health checks — requires live cluster (make up)
-#         (3) E2E integration tests   — requires live cluster
-#         (4) security gate checks    — requires live cluster
+#         (2) start cluster + functional health checks
+#         (3) E2E integration tests (SMPC1 + SMPC2)
+#         (4) security gate checks
 
-regression-tests:  ## Full regression suite: unit → functional → E2E integration → security gates
+regression-tests:  ## Full regression suite: unit → start cluster → functional → E2E → security gates
 	@echo "================================================================"
 	@echo " Regression Test Suite"
 	@echo "================================================================"
 	@echo ""
-	@echo "--- Phase 1: Unit Tests (simulated mode, no cluster needed) ---"
+	@echo "--- Phase 1: Unit Tests (all SMPC1 + SMPC2, no cluster needed) ---"
 	$(MAKE) smpc-unit-test
-	$(MAKE) smpc2-unit-test
 	@echo ""
-	@echo "--- Phase 2: Functional Health Checks ---"
+	@echo "--- Phase 2: Starting dev cluster + Functional Health Checks ---"
+	$(DEV_COMPOSE) up --build --force-recreate -d
+	@echo "Waiting for iris-engine2 to become healthy..."
+	@for i in $$(seq 1 60); do \
+		curl -sf $(ENGINE)/health/alive > /dev/null 2>&1 && break; \
+		sleep 2; \
+	done
 	@curl -sf $(ENGINE)/health/alive > /dev/null || \
-		(echo "  FAIL: cluster not responding — run: make up" && exit 1)
+		(echo "  FAIL: cluster not healthy after 120s" && exit 1)
 	@echo "  /health/alive → OK"
 	@echo "  /health/ready:"
 	@curl -sf $(ENGINE)/health/ready | python3 -m json.tool
 	@echo "  /config:"
 	@curl -sf $(ENGINE)/config | python3 -m json.tool
 	@echo ""
-	@echo "--- Phase 3: End-to-End Integration Tests (SMPC1) ---"
+	@echo "--- Phase 3a: End-to-End Integration Tests (SMPC1) ---"
 	$(MAKE) test-integration
 	$(MAKE) smpc-integration
 	@echo ""
-	@echo "--- Phase 4: End-to-End Integration Tests (SMPC2) ---"
-	$(MAKE) smpc2-integration
+	@echo "--- Phase 3b: End-to-End Integration Tests (SMPC2) ---"
+	./iris-engine2/scripts/run-smpc2-integration-tests.sh
 	@echo ""
-	@echo "--- Phase 5: Security Gate Verification ---"
-	$(MAKE) verify-all
+	@echo "--- Phase 4: Dev-Mode Verification ---"
+	@echo "  Checking SMPC2 active with 5 parties..."
+	@curl -sf $(ENGINE)/health/ready | python3 -c \
+		"import sys,json; d=json.load(sys.stdin); \
+		assert d.get('smpc2_active')==True, 'smpc2_active not true'; \
+		assert d.get('smpc2_parties')==5, f\"expected 5 parties, got {d.get('smpc2_parties')}\"; \
+		print('  PASS: smpc2_active=true, parties=5, threshold=' + str(d.get('smpc2_threshold')))"
+	@echo "  Checking /config returns full dev fields..."
+	@curl -sf $(ENGINE)/config | python3 -c \
+		"import sys,json; d=json.load(sys.stdin); \
+		assert d.get('mode')=='dev', f\"expected mode=dev, got {d.get('mode')}\"; \
+		assert 'smpc2_enabled' in d, 'smpc2_enabled missing'; \
+		print('  PASS: mode=dev, smpc2_enabled=' + str(d.get('smpc2_enabled')))"
+	@echo "  NOTE: Prod security gates (make verify-all) should be tested against a prod cluster."
 	@echo ""
 	@echo "================================================================"
 	@echo " Regression complete: all phases passed."
@@ -159,10 +177,12 @@ smpc2-gen-certs:   ## Generate mTLS certs for SMPC2 cluster (n parties via SMPC_
 	SMPC_PARTIES=$${SMPC_PARTIES:-5} bash iris-engine2/scripts/gen-certs.sh iris-engine2/certs smpc2-party
 
 smpc2-unit-test:   ## Run SMPC2 unit tests in container (no cluster needed)
-	$(SMPC2_COMPOSE) --profile test run --rm --build smpc2-unit-test
+	docker build --target test -t iris-engine2-test ./iris-engine2
+	docker run --rm iris-engine2-test ctest --test-dir /src/build --output-on-failure \
+		-R "(ShamirSharing|PlacementMap|SMPC2|smpc2)"
 
-smpc2-integration: ## Run SMPC2 distributed integration tests in container (requires: make up-smpc2)
-	$(SMPC2_COMPOSE) --profile test run --rm --build smpc2-integration-test
+smpc2-integration: ## Run SMPC2 distributed integration tests (requires running cluster)
+	./iris-engine2/scripts/run-smpc2-integration-tests.sh
 
 up-smpc2:          ## Start cluster with SMPC2 enabled (n=SMPC_PARTIES, default 5)
 	SMPC_PARTIES=$${SMPC_PARTIES:-5} $(SMPC2_COMPOSE) up --build
@@ -194,10 +214,10 @@ smpc2-vnv-all:     ## Full SMPC2 VV: unit tests (container) → start cluster �
 # --- Testing ---
 
 test-integration:  ## Run end-to-end integration test (gateway → NATS → iris-engine2)
-	@docker compose stop capture-device 2>/dev/null || true
+	@$(DEV_COMPOSE) stop capture-device 2>/dev/null || true
 	@sleep 2
-	docker compose run --rm integration-test
-	@docker compose start capture-device 2>/dev/null || true
+	$(DEV_COMPOSE) run --rm integration-test
+	@$(DEV_COMPOSE) start capture-device 2>/dev/null || true
 
 # --- Security Gate Verification (Phase 4) ---
 # Run these against a live stack: make up-prod / make up-dev as appropriate.

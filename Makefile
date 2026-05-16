@@ -143,30 +143,33 @@ regression-tests:  ## Full regression suite: unit → start cluster → function
 
 # --- SMPC VV Procedures ---
 
-smpc-gen-certs:    ## Generate mTLS certs for SMPC cluster (output: iris-engine2/certs/)
-	pushd iris-engine2 && ./scripts/gen-certs.sh ./certs && popd
+smpc-gen-certs:    ## Generate mTLS certs for SMPC cluster (n=SMPC_PARTIES, default 5)
+	SMPC_PARTIES=$${SMPC_PARTIES:-5} bash iris-engine2/scripts/gen-certs.sh iris-engine2/certs
 
 smpc-unit-test:    ## Build and run all SMPC unit/integration/migration/security tests via CTest
 	docker build --target test -t iris-engine2-test ./iris-engine2
 	docker run --rm iris-engine2-test ctest --test-dir /src/build --output-on-failure
 
-smpc-integration:  ## Run distributed SMPC integration tests (requires running cluster: make up)
+smpc-integration:  ## Run distributed SMPC1 + SMPC2 integration tests (requires running cluster)
 	./iris-engine2/scripts/run-integration-tests.sh
+	./iris-engine2/scripts/run-smpc2-integration-tests.sh
 
 up-tls:            ## Start cluster with mTLS enabled (requires: make smpc-gen-certs first)
-	docker compose -f docker-compose.yml -f docker-compose.tls.yml up -d
+	docker compose -f docker-compose.yml -f docker-compose.tls.yml up --build -d
 
-smpc-vnv-all:      ## Full SMPC VV run: unit tests + E2E integration tests
+smpc-vnv-all:      ## Full SMPC VV run: unit tests + E2E integration (SMPC1 + SMPC2)
 	@echo "================================================"
-	@echo " SMPC VV: Unit + Integration Tests"
+	@echo " SMPC VV: Unit + Integration Tests (SMPC1 + SMPC2)"
 	@echo "================================================"
 	@$(MAKE) smpc-unit-test
 	@echo ""
 	@echo "--- E2E: checking cluster health ---"
 	@curl -sf http://localhost:9510/health/ready | python3 -m json.tool
+	@echo ""
+	@echo "--- SMPC1 + SMPC2 Integration Tests ---"
 	@$(MAKE) smpc-integration
 	@echo "================================================"
-	@echo " SMPC VV complete."
+	@echo " SMPC VV complete (SMPC1 + SMPC2)."
 	@echo "================================================"
 
 # --- SMPC2 VV Procedures (Shamir (k,n) with random placement) ---

@@ -2,29 +2,38 @@
 # Generate mTLS certificates for SMPC cluster.
 #
 # Creates:
-#   certs/ca.crt, certs/ca.key           — Certificate Authority
-#   certs/coordinator.crt, coordinator.key — iris-engine2 (coordinator)
-#   certs/party-1.crt, party-1.key        — SMPC participant 1
-#   certs/party-2.crt, party-2.key        — SMPC participant 2
-#   certs/party-3.crt, party-3.key        — SMPC participant 3
-#   certs/nats-server.crt, nats-server.key — NATS server
+#   certs/ca.crt, certs/ca.key             — Certificate Authority
+#   certs/coordinator.crt, coordinator.key  — iris-engine2 (coordinator)
+#   certs/nats-server.crt, nats-server.key  — NATS server
+#   certs/party-1.crt … party-N.crt        — SMPC participant certs
 #
-# Usage: ./scripts/gen-certs.sh [output_dir]
-#   output_dir defaults to ./certs
+# Usage: ./scripts/gen-certs.sh [output_dir] [party_prefix]
+#   output_dir   — defaults to ./certs
+#   party_prefix — Docker service name prefix (default: smpc-party)
+#                  e.g. "smpc2-party" for SMPC2 services
+#
+# Environment:
+#   SMPC_PARTIES — number of party certs to generate (default: 5)
 
 set -euo pipefail
 
 OUTDIR="${1:-./certs}"
+PARTY_PREFIX="${2:-smpc-party}"
+NUM_PARTIES="${SMPC_PARTIES:-5}"
 DAYS_CA=3650
 DAYS_CERT=365
 KEY_BITS=4096
 
+TOTAL_STEPS=$((NUM_PARTIES + 3))  # CA + coordinator + NATS + N parties
+
 mkdir -p "$OUTDIR"
 
 echo "=== Generating SMPC mTLS certificates in $OUTDIR ==="
+echo "    Parties: $NUM_PARTIES (prefix: $PARTY_PREFIX)"
 
 # --- CA ---
-echo "[1/6] Generating CA..."
+STEP=1
+echo "[$STEP/$TOTAL_STEPS] Generating CA..."
 openssl req -x509 -newkey "rsa:$KEY_BITS" -nodes \
     -keyout "$OUTDIR/ca.key" \
     -out "$OUTDIR/ca.crt" \
@@ -62,20 +71,22 @@ generate_cert() {
 }
 
 # --- Service certificates ---
-echo "[2/6] Generating coordinator certificate..."
+STEP=$((STEP + 1))
+echo "[$STEP/$TOTAL_STEPS] Generating coordinator certificate..."
 generate_cert "coordinator" "iris-engine2" "DNS:iris-engine2,DNS:localhost,IP:127.0.0.1"
 
-echo "[3/6] Generating NATS server certificate..."
+STEP=$((STEP + 1))
+echo "[$STEP/$TOTAL_STEPS] Generating NATS server certificate..."
 generate_cert "nats-server" "nats" "DNS:nats,DNS:localhost,IP:127.0.0.1"
 
-echo "[4/6] Generating party-1 certificate..."
-generate_cert "party-1" "smpc-party-1" "DNS:smpc-party-1,DNS:localhost,IP:127.0.0.1"
-
-echo "[5/6] Generating party-2 certificate..."
-generate_cert "party-2" "smpc-party-2" "DNS:smpc-party-2,DNS:localhost,IP:127.0.0.1"
-
-echo "[6/6] Generating party-3 certificate..."
-generate_cert "party-3" "smpc-party-3" "DNS:smpc-party-3,DNS:localhost,IP:127.0.0.1"
+# --- Party certificates ---
+# SANs include both smpc-party-N and smpc2-party-N so one cert works for both services
+for i in $(seq 1 "$NUM_PARTIES"); do
+    STEP=$((STEP + 1))
+    echo "[$STEP/$TOTAL_STEPS] Generating party-$i certificate..."
+    generate_cert "party-$i" "${PARTY_PREFIX}-${i}" \
+        "DNS:smpc-party-${i},DNS:smpc2-party-${i},DNS:localhost,IP:127.0.0.1"
+done
 
 # Clean up serial file
 rm -f "$OUTDIR/ca.srl"
@@ -89,6 +100,6 @@ echo "=== Done. Certificates generated in $OUTDIR ==="
 echo "  CA:          $OUTDIR/ca.crt"
 echo "  Coordinator: $OUTDIR/coordinator.crt + .key"
 echo "  NATS:        $OUTDIR/nats-server.crt + .key"
-echo "  Party 1:     $OUTDIR/party-1.crt + .key"
-echo "  Party 2:     $OUTDIR/party-2.crt + .key"
-echo "  Party 3:     $OUTDIR/party-3.crt + .key"
+for i in $(seq 1 "$NUM_PARTIES"); do
+    echo "  Party $i:     $OUTDIR/party-$i.crt + .key"
+done

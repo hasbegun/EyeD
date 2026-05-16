@@ -102,3 +102,12 @@ add_test(NAME test_migration COMMAND test_migration)
 add_test(NAME bench_smpc COMMAND bench_smpc)
 add_test(NAME test_smpc2_manager COMMAND test_smpc2_manager)
 
+# --- Timeouts (seconds) — prevent hangs in emulated Docker ---
+set_tests_properties(
+    test_config test_db test_gallery test_smpc test_smpc_coordinator
+    test_smpc_sharded test_smpc_security test_smpc_integration
+    test_migration test_smpc2_manager
+    PROPERTIES TIMEOUT 120
+)
+set_tests_properties(bench_smpc PROPERTIES TIMEOUT 300)
+
